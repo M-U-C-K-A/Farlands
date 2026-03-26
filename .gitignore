@@ -1,0 +1,6 @@
+build/
+*.spv
+.DS_Store
+.vscode/
+.idea/
+compile_commands.json
