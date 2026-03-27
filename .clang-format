@@ -9,6 +9,17 @@ BraceWrapping:
   AfterClass: true
   BeforeElse: false
 
+AllowShortEnumsOnASingleLine: false
+ColumnLimit: 80
+
+# Empêche de mettre les listes d'initialisation (ex: Map, Vector) sur une seule ligne
+AllowShortLambdasOnASingleLine: None
+AllowShortBlocksOnASingleLine: false
+
+# Force le passage à la ligne pour les éléments de liste si la ligne dépasse un peu
+# ou si tu as mis une virgule après le dernier élément
+Cpp11BracedListStyle: false
+
 # Configuration pour les TABULATIONS
 UseTab: Always
 TabWidth: 4
