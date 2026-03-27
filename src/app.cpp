@@ -1,5 +1,5 @@
 #include "app.h"
-#include "cube.h"
+#include "chunk.h"
 
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
@@ -40,8 +40,9 @@ void Application::mainLoop() {
     }
 
     UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f),
-                            glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 model = glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::translate(model, glm::vec3(-CHUNK_SIZE_X / 2.0f, -8.0f, -CHUNK_SIZE_Z / 2.0f));
+    ubo.model = model;
     ubo.view = m_camera.getViewMatrix();
     ubo.proj = m_camera.getProjectionMatrix();
 
@@ -60,6 +61,24 @@ void Application::cleanup() {
 void Application::run() {
   initWindow();
   m_renderer.init(m_window);
+
+  Chunk chunk;
+  for (int x = 0; x < CHUNK_SIZE_X; ++x) {
+    for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
+      for (int y = 0; y < 16; ++y) {
+        if (y < 12) {
+          chunk.setBlock(x, y, z, BlockType::Stone);
+        } else if (y < 15) {
+          chunk.setBlock(x, y, z, BlockType::Dirt);
+        } else {
+          chunk.setBlock(x, y, z, BlockType::Grass);
+        }
+      }
+    }
+  }
+  chunk.generateMesh();
+  m_renderer.updateBuffers(chunk.getVertices(), chunk.getIndices());
+
   mainLoop();
   cleanup();
 }

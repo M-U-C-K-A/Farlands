@@ -1,0 +1,16 @@
+---
+BasedOnStyle: Google
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: false
+  AfterClass: true
+  BeforeElse: false
+
+# Configuration pour les TABULATIONS
+UseTab: Always
+TabWidth: 4
+IndentWidth: 4
+---
