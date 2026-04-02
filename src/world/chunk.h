@@ -11,7 +11,8 @@ constexpr int CHUNK_SIZE_Y = 256;
 constexpr int CHUNK_SIZE_Z = 16;
 constexpr int CHUNK_VOLUME = CHUNK_SIZE_X * CHUNK_SIZE_Y * CHUNK_SIZE_Z;
 
-class Chunk {
+class Chunk
+{
 public:
   Chunk(int cx = 0, int cz = 0);
   ~Chunk() = default;
@@ -24,7 +25,8 @@ public:
   glm::ivec2 getChunkPos() const { return m_chunkPos; }
 
   /// Convertit des coordonnées locales en coordonnées monde
-  glm::ivec3 toWorldPos(int lx, int ly, int lz) const {
+  glm::ivec3 toWorldPos(int lx, int ly, int lz) const
+  {
     return {m_chunkPos.x * CHUNK_SIZE_X + lx, ly,
             m_chunkPos.y * CHUNK_SIZE_Z + lz};
   }

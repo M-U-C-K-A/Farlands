@@ -28,6 +28,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${IMGUI_SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/external
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${Vulkan_INCLUDE_DIRS}
@@ -66,6 +67,7 @@ add_dependencies(${PROJECT_NAME} shaders)
 # Pass shader path to source code
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     SHADER_DIR="${SHADER_OUT_DIR}"
+    ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
 )
 
 # macOS / MoltenVK specifics

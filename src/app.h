@@ -5,24 +5,27 @@
 #include "renderer/camera.h"
 #include "renderer/renderer.h"
 #include "ui/menu.h"
+#include "world/world.h"
 
-class Application {
-public:
-  void run();
+class Application
+{
+  public:
+	void run();
 
-private:
-  void initWindow();
-  void mainLoop();
-  void cleanup();
+  private:
+	void initWindow();
+	void mainLoop();
+	void cleanup();
 
-  static void framebufferResizeCallback(GLFWwindow *window, int width,
-                                        int height);
+	static void
+	framebufferResizeCallback(GLFWwindow *window, int width, int height);
 
-  GLFWwindow *m_window = nullptr;
-  Renderer m_renderer;
-  Camera m_camera;
-  MainMenu m_menu;
+	GLFWwindow *m_window = nullptr;
+	Renderer m_renderer;
+	Camera m_camera;
+	MainMenu m_menu;
+	World m_world;
 
-  static constexpr int WIDTH = 1280;
-  static constexpr int HEIGHT = 720;
+	static constexpr int WIDTH = 1280;
+	static constexpr int HEIGHT = 720;
 };

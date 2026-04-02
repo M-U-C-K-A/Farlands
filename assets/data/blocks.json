@@ -1,0 +1,154 @@
+{
+  "blocks": [
+    {
+      "id": 0,
+      "name": "Air",
+      "transparent": true,
+      "solid": false,
+      "hardness": 0.0,
+      "texture": "",
+      "color": [0.0, 0.0, 0.0],
+      "colorTop": [0.0, 0.0, 0.0]
+    },
+    {
+      "id": 1,
+      "name": "Dirt",
+      "transparent": false,
+      "solid": true,
+      "hardness": 1.5,
+      "texture": "textures/block/dirt.png",
+      "color": [0.53, 0.38, 0.28],
+      "colorTop": [0.53, 0.38, 0.28]
+    },
+    {
+      "id": 2,
+      "name": "Grass",
+      "transparent": false,
+      "solid": true,
+      "hardness": 0.6,
+      "texture": "textures/block/grass_block_side.png",
+      "color": [0.36, 0.58, 0.28],
+      "colorTop": [0.46, 0.72, 0.31]
+    },
+    {
+      "id": 3,
+      "name": "Stone",
+      "transparent": false,
+      "solid": true,
+      "hardness": 1.5,
+      "texture": "textures/block/stone.png",
+      "color": [0.5, 0.5, 0.5],
+      "colorTop": [0.5, 0.5, 0.5]
+    },
+    {
+      "id": 4,
+      "name": "Log",
+      "transparent": false,
+      "solid": true,
+      "hardness": 2.0,
+      "texture": "textures/block/oak_log.png",
+      "color": [0.45, 0.30, 0.15],
+      "colorTop": [0.55, 0.40, 0.20]
+    },
+    {
+      "id": 5,
+      "name": "Plank",
+      "transparent": false,
+      "solid": true,
+      "hardness": 1.5,
+      "texture": "textures/block/oak_planks.png",
+      "color": [0.65, 0.50, 0.30],
+      "colorTop": [0.65, 0.50, 0.30]
+    },
+    {
+      "id": 6,
+      "name": "Glass",
+      "transparent": true,
+      "solid": true,
+      "hardness": 0.3,
+      "texture": "textures/block/glass.png",
+      "color": [0.7, 0.85, 0.95],
+      "colorTop": [0.7, 0.85, 0.95]
+    },
+    {
+      "id": 7,
+      "name": "Leaves",
+      "transparent": true,
+      "solid": true,
+      "hardness": 0.2,
+      "texture": "textures/block/oak_leaves.png",
+      "color": [0.25, 0.55, 0.20],
+      "colorTop": [0.30, 0.60, 0.22]
+    },
+    {
+      "id": 8,
+      "name": "Sand",
+      "transparent": false,
+      "solid": true,
+      "hardness": 0.5,
+      "texture": "textures/block/sand.png",
+      "color": [0.85, 0.80, 0.55],
+      "colorTop": [0.90, 0.85, 0.60]
+    },
+    {
+      "id": 9,
+      "name": "Water",
+      "transparent": true,
+      "solid": false,
+      "hardness": 100.0,
+      "texture": "textures/block/water_still.png",
+      "color": [0.15, 0.35, 0.70],
+      "colorTop": [0.20, 0.40, 0.80]
+    },
+    {
+      "id": 10,
+      "name": "Cobblestone",
+      "transparent": false,
+      "solid": true,
+      "hardness": 2.0,
+      "texture": "textures/block/cobblestone.png",
+      "color": [0.42, 0.42, 0.42],
+      "colorTop": [0.42, 0.42, 0.42]
+    },
+    {
+      "id": 11,
+      "name": "Bedrock",
+      "transparent": false,
+      "solid": true,
+      "hardness": -1.0,
+      "texture": "textures/block/bedrock.png",
+      "color": [0.20, 0.20, 0.20],
+      "colorTop": [0.20, 0.20, 0.20]
+    },
+    {
+      "id": 12,
+      "name": "Gravel",
+      "transparent": false,
+      "solid": true,
+      "hardness": 0.6,
+      "texture": "textures/block/gravel.png",
+      "color": [0.55, 0.52, 0.50],
+      "colorTop": [0.55, 0.52, 0.50]
+    },
+    {
+      "id": 13,
+      "name": "Iron_Ore",
+      "transparent": false,
+      "solid": true,
+      "hardness": 3.0,
+      "texture": "textures/block/iron_ore.png",
+      "color": [0.55, 0.50, 0.45],
+      "colorTop": [0.55, 0.50, 0.45]
+    },
+    {
+      "id": 14,
+      "name": "Coal_Ore",
+      "transparent": false,
+      "solid": true,
+      "hardness": 3.0,
+      "texture": "textures/block/coal_ore.png",
+      "color": [0.35, 0.35, 0.35],
+      "colorTop": [0.35, 0.35, 0.35]
+    }
+  ]
+}

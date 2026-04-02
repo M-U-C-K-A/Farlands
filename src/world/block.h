@@ -4,23 +4,32 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 // ── Block Type Enum ─────────────────────────────────────────────
+// IDs match the JSON "id" field
 enum class BlockType : uint8_t {
-  Air,
-  Dirt,
-  Grass,
-  Stone,
-  Log,
-  Plank,
-  Glass,
-  Leaves,
+  Air = 0,
+  Dirt = 1,
+  Grass = 2,
+  Stone = 3,
+  Log = 4,
+  Plank = 5,
+  Glass = 6,
+  Leaves = 7,
+  Sand = 8,
+  Water = 9,
+  Cobblestone = 10,
+  Bedrock = 11,
+  Gravel = 12,
+  Iron_Ore = 13,
+  Coal_Ore = 14,
   Count
 };
 
 // ── Block Properties ────────────────────────────────────────────
 struct BlockData {
-  BlockType id;
+  uint8_t id;
   std::string name;
   bool isTransparent;
   bool isSolid;
@@ -30,38 +39,24 @@ struct BlockData {
   glm::vec3 colorTop; // couleur du dessus (si différente)
 };
 
-// ── Block Database ──────────────────────────────────────────────
+// ── Block Database (chargée depuis JSON) ────────────────────────
 class BlockDatabase {
 public:
-  static const BlockData &Get(BlockType type) {
-    static const std::unordered_map<BlockType, BlockData> database = {
-        {BlockType::Air,
-         {BlockType::Air, "Air", true, false, 0.0f, "",
-          {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}},
-        {BlockType::Dirt,
-         {BlockType::Dirt, "Dirt", false, true, 1.5f, "",
-          {0.53f, 0.38f, 0.28f}, {0.53f, 0.38f, 0.28f}}},
-        {BlockType::Grass,
-         {BlockType::Grass, "Grass", false, true, 0.6f, "",
-          {0.36f, 0.58f, 0.28f}, {0.46f, 0.72f, 0.31f}}},
-        {BlockType::Stone,
-         {BlockType::Stone, "Stone", false, true, 1.5f, "",
-          {0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}}},
-        {BlockType::Log,
-         {BlockType::Log, "Log", false, true, 2.0f, "",
-          {0.45f, 0.30f, 0.15f}, {0.55f, 0.40f, 0.20f}}},
-        {BlockType::Plank,
-         {BlockType::Plank, "Plank", false, true, 1.5f, "",
-          {0.65f, 0.50f, 0.30f}, {0.65f, 0.50f, 0.30f}}},
-        {BlockType::Glass,
-         {BlockType::Glass, "Glass", true, true, 0.3f, "",
-          {0.7f, 0.85f, 0.95f}, {0.7f, 0.85f, 0.95f}}},
-        {BlockType::Leaves,
-         {BlockType::Leaves, "Leaves", true, true, 0.2f, "",
-          {0.25f, 0.55f, 0.20f}, {0.30f, 0.60f, 0.22f}}}};
-    return database.at(type);
-  }
+  /// Charge la base de données depuis un fichier JSON.
+  /// Doit être appelé une fois au démarrage.
+  static void LoadFromFile(const std::string &jsonPath);
 
+  /// Accès aux données d'un bloc par type.
+  static const BlockData &Get(BlockType type);
+
+  /// Raccourcis
   static bool IsTransparent(BlockType type) { return Get(type).isTransparent; }
   static bool IsSolid(BlockType type) { return Get(type).isSolid; }
+
+  /// Vérifie si la DB est chargée
+  static bool IsLoaded() { return s_loaded; }
+
+private:
+  static std::unordered_map<uint8_t, BlockData> s_database;
+  static bool s_loaded;
 };
