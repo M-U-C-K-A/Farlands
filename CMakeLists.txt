@@ -11,12 +11,24 @@ find_package(glfw3 3.3 REQUIRED)
 find_package(glm REQUIRED)
 
 # ── Sources ─────────────────────────────────────────────────────
-file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
+set(IMGUI_DIR "${CMAKE_SOURCE_DIR}/external/imgui")
+file(GLOB IMGUI_SOURCES
+    "${IMGUI_DIR}/imgui.cpp"
+    "${IMGUI_DIR}/imgui_draw.cpp"
+    "${IMGUI_DIR}/imgui_tables.cpp"
+    "${IMGUI_DIR}/imgui_widgets.cpp"
+    "${IMGUI_DIR}/backends/imgui_impl_glfw.cpp"
+    "${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp"
+)
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/title_game/*.cpp")
+
+add_executable(${PROJECT_NAME} ${SOURCES} ${IMGUI_SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
     ${Vulkan_INCLUDE_DIRS}
 )
 

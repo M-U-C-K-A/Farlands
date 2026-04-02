@@ -68,6 +68,37 @@ void Renderer::init(GLFWwindow* window) {
     createDescriptorSets();
     createCommandBuffers();
     createSyncObjects();
+    initImGui();
+}
+
+void Renderer::initImGui() {
+    VkDescriptorPoolSize pool_sizes[] = { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 } };
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1000;
+    pool_info.poolSizeCount = 1;
+    pool_info.pPoolSizes = pool_sizes;
+    vkCreateDescriptorPool(m_device, &pool_info, nullptr, &m_imguiPool);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForVulkan(m_window, true);
+    ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.Instance = m_instance;
+    init_info.PhysicalDevice = m_physicalDevice;
+    init_info.Device = m_device;
+    init_info.QueueFamily = findQueueFamilies(m_physicalDevice).graphicsFamily.value();
+    init_info.Queue = m_graphicsQueue;
+    init_info.PipelineCache = VK_NULL_HANDLE;
+    init_info.DescriptorPool = m_imguiPool;
+    init_info.MinImageCount = MAX_FRAMES_IN_FLIGHT;
+    init_info.ImageCount = m_swapChainImages.size();
+    init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.PipelineInfoMain.RenderPass = m_renderPass;
+    ImGui_ImplVulkan_Init(&init_info);
 }
 
 void Renderer::createInstance() {
@@ -561,8 +592,7 @@ void Renderer::createSyncObjects() {
             throw std::runtime_error("Failed to create sync objects");
     }
 }
-
-void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex) {
+void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex, ImDrawData* draw_data) {
     VkCommandBufferBeginInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     if (vkBeginCommandBuffer(cmd, &bi) != VK_SUCCESS) throw std::runtime_error("Failed to begin command buffer");
 
@@ -575,27 +605,59 @@ void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex) {
     rpbi.clearValueCount = static_cast<uint32_t>(clearValues.size()); rpbi.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-    VkViewport viewport{}; viewport.width = (float)m_swapChainExtent.width; viewport.height = (float)m_swapChainExtent.height;
-    viewport.minDepth = 0.0f; viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
-    VkRect2D scissor{}; scissor.extent = m_swapChainExtent;
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
+    if (!m_inMenu) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-    if (m_indexCount > 0 && m_vertexBuffer != VK_NULL_HANDLE) {
-        VkBuffer vertBufs[] = {m_vertexBuffer}; VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(cmd, 0, 1, vertBufs, offsets);
-        vkCmdBindIndexBuffer(cmd, m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
-        vkCmdDrawIndexed(cmd, m_indexCount, 1, 0, 0, 0);
+        VkViewport viewport{}; viewport.width = (float)m_swapChainExtent.width; viewport.height = (float)m_swapChainExtent.height;
+        viewport.minDepth = 0.0f; viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        VkRect2D scissor{}; scissor.extent = m_swapChainExtent;
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        if (m_indexCount > 0 && m_vertexBuffer != VK_NULL_HANDLE) {
+            VkBuffer vertBufs[] = {m_vertexBuffer}; VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(cmd, 0, 1, vertBufs, offsets);
+            vkCmdBindIndexBuffer(cmd, m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
+            vkCmdDrawIndexed(cmd, m_indexCount, 1, 0, 0, 0);
+        }
     }
+
+    ImGui_ImplVulkan_RenderDrawData(draw_data, cmd);
 
     vkCmdEndRenderPass(cmd);
     if (vkEndCommandBuffer(cmd) != VK_SUCCESS) throw std::runtime_error("Failed to record command buffer");
 }
 
 void Renderer::drawFrame(const UniformBufferObject& ubo) {
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    if (m_inMenu) {
+        int w, h; glfwGetFramebufferSize(m_window, &w, &h);
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(w, h));
+        ImGui::Begin("Main Menu", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground);
+        
+        ImGui::SetCursorPos(ImVec2(w/2 - 200, h/2 - 60));
+        if (ImGui::Button("Singleplayer", ImVec2(400, 40))) {
+            m_inMenu = false;
+        }
+        ImGui::SetCursorPos(ImVec2(w/2 - 200, h/2));
+        if (ImGui::Button("Options", ImVec2(350, 40))) {}
+        
+        ImGui::SetCursorPos(ImVec2(w/2 + 160, h/2));
+        if (ImGui::Button("Quit", ImVec2(40, 40))) {
+            glfwSetWindowShouldClose(m_window, true);
+        }
+        ImGui::End();
+    }
+
+    ImGui::Render();
+    ImDrawData* draw_data = ImGui::GetDrawData();
+
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
@@ -607,7 +669,7 @@ void Renderer::drawFrame(const UniformBufferObject& ubo) {
     memcpy(m_uniformBuffersMapped[m_currentFrame], &ubo, sizeof(ubo));
 
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
-    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex);
+    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, draw_data);
 
     VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     VkSemaphore waitSems[] = {m_imageAvailableSemaphores[m_currentFrame]};
@@ -651,6 +713,12 @@ void Renderer::recreateSwapChain() {
 void Renderer::waitIdle() { vkDeviceWaitIdle(m_device); }
 
 void Renderer::cleanup() {
+    vkDeviceWaitIdle(m_device);
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    vkDestroyDescriptorPool(m_device, m_imguiPool, nullptr);
+    
     cleanupSwapChain();
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroyBuffer(m_device, m_uniformBuffers[i], nullptr);
