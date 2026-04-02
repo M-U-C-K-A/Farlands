@@ -1,5 +1,6 @@
 #include "app.h"
-#include "chunk.h"
+#include "world/chunk.h"
+#include "world/chunk_mesh.h"
 
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
@@ -40,13 +41,20 @@ void Application::mainLoop() {
     }
 
     UniformBufferObject ubo{};
-    glm::mat4 model = glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::translate(model, glm::vec3(-CHUNK_SIZE_X / 2.0f, -8.0f, -CHUNK_SIZE_Z / 2.0f));
+    glm::mat4 model = glm::rotate(glm::mat4(1.0f),
+                                  time * glm::radians(45.0f),
+                                  glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::translate(
+        model, glm::vec3(-CHUNK_SIZE_X / 2.0f, -8.0f, -CHUNK_SIZE_Z / 2.0f));
     ubo.model = model;
     ubo.view = m_camera.getViewMatrix();
     ubo.proj = m_camera.getProjectionMatrix();
 
-    m_renderer.drawFrame(ubo);
+    // ImGui frame: begin → draw UI → drawFrame finishes
+    m_renderer.beginImGuiFrame();
+    m_menu.draw(m_window);
+
+    m_renderer.drawFrame(ubo, m_menu.isActive());
   }
 
   m_renderer.waitIdle();
@@ -62,7 +70,8 @@ void Application::run() {
   initWindow();
   m_renderer.init(m_window);
 
-  Chunk chunk;
+  // Génération du terrain de test
+  Chunk chunk(0, 0);
   for (int x = 0; x < CHUNK_SIZE_X; ++x) {
     for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
       for (int y = 0; y < 16; ++y) {
@@ -76,8 +85,9 @@ void Application::run() {
       }
     }
   }
-  chunk.generateMesh();
-  m_renderer.updateBuffers(chunk.getVertices(), chunk.getIndices());
+
+  ChunkMesh mesh = generateChunkMesh(chunk);
+  m_renderer.updateBuffers(mesh.vertices, mesh.indices);
 
   mainLoop();
   cleanup();

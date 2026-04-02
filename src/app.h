@@ -1,24 +1,28 @@
 #pragma once
 
 #include <GLFW/glfw3.h>
-#include "renderer.h"
-#include "camera.h"
+
+#include "renderer/camera.h"
+#include "renderer/renderer.h"
+#include "ui/menu.h"
 
 class Application {
 public:
-    void run();
+  void run();
 
 private:
-    void initWindow();
-    void mainLoop();
-    void cleanup();
+  void initWindow();
+  void mainLoop();
+  void cleanup();
 
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+  static void framebufferResizeCallback(GLFWwindow *window, int width,
+                                        int height);
 
-    GLFWwindow* m_window = nullptr;
-    Renderer m_renderer;
-    Camera m_camera;
+  GLFWwindow *m_window = nullptr;
+  Renderer m_renderer;
+  Camera m_camera;
+  MainMenu m_menu;
 
-    static constexpr int WIDTH = 1280;
-    static constexpr int HEIGHT = 720;
+  static constexpr int WIDTH = 1280;
+  static constexpr int HEIGHT = 720;
 };
