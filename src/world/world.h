@@ -1,3 +1,7 @@
+// -----------------------------------------------------------------------------
+// Fichier : world.h
+// Rôle : Gestion du monde entier (composé de multiples Chunks).
+// -----------------------------------------------------------------------------
 #pragma once
 
 #include "../core/types.h"

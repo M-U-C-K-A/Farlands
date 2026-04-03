@@ -1,3 +1,7 @@
+// -----------------------------------------------------------------------------
+// Fichier : chunk.h
+// Rôle : Définition d'un tronçon (Chunk) de la carte, stockant les blocs en mémoire.
+// -----------------------------------------------------------------------------
 #pragma once
 
 #include "block.h"
@@ -14,14 +18,16 @@ constexpr int CHUNK_VOLUME = CHUNK_SIZE_X * CHUNK_SIZE_Y * CHUNK_SIZE_Z;
 class Chunk
 {
 public:
+  // Constructeur : initialise un chunk avec ses coordonnées grille (cx, cz).
   Chunk(int cx = 0, int cz = 0);
   ~Chunk() = default;
 
-  // ── Block access ──────────────────────────────────────────────
+  // Modifie le type de bloc à une position locale (x, y, z) au sein du chunk
   void setBlock(int x, int y, int z, BlockType type);
+  // Retourne le type de bloc à la position locale demandée
   BlockType getBlock(int x, int y, int z) const;
 
-  // ── Position ──────────────────────────────────────────────────
+  // Renvoie la position du chunk dans la grille globale du monde
   glm::ivec2 getChunkPos() const { return m_chunkPos; }
 
   /// Convertit des coordonnées locales en coordonnées monde

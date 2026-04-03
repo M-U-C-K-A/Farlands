@@ -1,3 +1,7 @@
+// -----------------------------------------------------------------------------
+// Fichier : chunk_mesh.h
+// Rôle : Modèles mathématiques et fonctions de création du maillage 3D d'un chunk.
+// -----------------------------------------------------------------------------
 #pragma once
 
 #include "../core/types.h"
@@ -5,6 +9,9 @@
 
 #include <cstdint>
 #include <vector>
+
+class World;
+
 
 // ── Mesh data container ─────────────────────────────────────────
 struct ChunkMesh {
@@ -20,4 +27,5 @@ struct ChunkMesh {
 
 /// Génère le mesh d'un chunk avec face culling.
 /// Les couleurs sont tirées de BlockDatabase.
-ChunkMesh generateChunkMesh(const Chunk &chunk);
+ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world = nullptr);
+

@@ -1,3 +1,8 @@
+// -----------------------------------------------------------------------------
+// Fichier : block.h
+// Rôle : Définitions et propriétés de tous les blocs du jeu.
+// Gère aussi le chargement de ces données JSON.
+// -----------------------------------------------------------------------------
 #pragma once
 
 #include <cstdint>
