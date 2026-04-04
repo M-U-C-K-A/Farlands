@@ -40,6 +40,10 @@ public:
   // ── Dirty flag ────────────────────────────────────────────────
   bool isDirty() const { return m_dirty; }
   void clearDirty() { m_dirty = false; }
+  void setDirty() { m_dirty = true; }
+
+  /// Accès direct au tableau de blocs (pour la sérialisation)
+  const std::array<BlockType, CHUNK_VOLUME> &getBlocks() const { return m_blocks; }
 
 private:
   std::array<BlockType, CHUNK_VOLUME> m_blocks;

@@ -7,12 +7,14 @@
 
 #include <GLFW/glfw3.h>
 
+#include "imgui.h"
+
 /// Gère l'état et le rendu du menu principal via ImGui.
 class MainMenu
 {
   public:
 	/// Dessine le menu ImGui. Retourne true si le joueur clique "Singleplayer".
-	bool draw(GLFWwindow *window);
+	bool draw(GLFWwindow *window, ImTextureID bg_texture, ImTextureID logo_texture);
 
 	// Indique si le menu est actuellement actif ou non
 	bool isActive() const { return m_active; }

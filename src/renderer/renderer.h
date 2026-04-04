@@ -16,8 +16,6 @@
 #include "vk_swapchain.h"
 #include "vk_texture.h"
 
-#include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_vulkan.h"
 #include "imgui.h"
 
 #include <vector>
@@ -47,6 +45,8 @@ class Renderer
 
 	// Expose for ImGui init in menu
 	GLFWwindow *getWindow() const { return m_window; }
+	VkDescriptorSet getPanoramaTextureId() const { return m_panoramaTextureId; }
+	VkDescriptorSet getLogoTextureId() const { return m_logoTextureId; }
 
   private:
 	GLFWwindow *m_window = nullptr;
@@ -54,6 +54,8 @@ class Renderer
 	VkContext m_context;
 	VkSwapchain m_swapchain;
 	VkTexture m_texture;
+	VkTexture m_panoramaTexture;
+	VkTexture m_logoTexture;
 	VkPipelineManager m_pipeline;
 	VkBufferManager m_buffers;
 
@@ -65,6 +67,8 @@ class Renderer
 
 	VkDescriptorPool m_imguiPool = VK_NULL_HANDLE;
 	VkCommandPool m_renderCommandPool = VK_NULL_HANDLE;
+	VkDescriptorSet m_panoramaTextureId = VK_NULL_HANDLE;
+	VkDescriptorSet m_logoTextureId = VK_NULL_HANDLE;
 
 	// Prépare les command buffers nécessaires selon le nombre d'images de la
 	// swapchain
@@ -77,5 +81,5 @@ class Renderer
 	// Écrit les instructions de rendu dans un vkCommandBuffer donné (bind
 	// pipeline, buffers, draw command)
 	void recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex,
-							 ImDrawData *draw_data, bool inMenu);
+							 ImDrawData *draw_data, bool inMenu, float time);
 };

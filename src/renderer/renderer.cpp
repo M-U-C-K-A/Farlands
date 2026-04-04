@@ -2,6 +2,8 @@
 
 #include <array>
 #include <stdexcept>
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
 
 // ── Init ────────────────────────────────────────────────────────
 void Renderer::init(GLFWwindow *window)
@@ -21,7 +23,9 @@ void Renderer::init(GLFWwindow *window)
 								   m_pipeline.getRenderPass());
 
 	// 4. Texture & Atlas
-	m_texture.init(m_context, "assets/textures/atlas.png");
+	m_texture.init(m_context, std::string(ASSETS_DIR) + "/textures/atlas.png");
+	m_panoramaTexture.init(m_context, std::string(ASSETS_DIR) + "/textures/gui/title/background/panorama_0.png");
+	m_logoTexture.init(m_context, std::string(ASSETS_DIR) + "/Farlands.png");
 
 	m_buffers.init(m_context, m_pipeline.getDescriptorSetLayout(), m_texture.getImageView(), m_texture.getSampler());
 	createCommandBuffers();
@@ -63,6 +67,17 @@ void Renderer::initImGui()
 	init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 	init_info.PipelineInfoMain.RenderPass = m_pipeline.getRenderPass();
 	ImGui_ImplVulkan_Init(&init_info);
+
+	// Load panorama texture for ImGui
+	m_panoramaTextureId = ImGui_ImplVulkan_AddTexture(
+		m_panoramaTexture.getSampler(),
+		m_panoramaTexture.getImageView(),
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	m_logoTextureId = ImGui_ImplVulkan_AddTexture(
+		m_logoTexture.getSampler(),
+		m_logoTexture.getImageView(),
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 // ── Command Buffers ─────────────────────────────────────────────
@@ -120,7 +135,7 @@ void Renderer::createSyncObjects()
 
 // ── Record Command Buffer ───────────────────────────────────────
 void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex,
-								   ImDrawData *draw_data, bool inMenu)
+								   ImDrawData *draw_data, bool inMenu, float time)
 {
 	VkCommandBufferBeginInfo bi{};
 	bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -128,7 +143,7 @@ void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex,
 		throw std::runtime_error("Failed to begin command buffer");
 
 	std::array<VkClearValue, 2> clearValues{};
-	clearValues[0].color = {{0.05f, 0.05f, 0.08f, 1.0f}};
+	clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Backplate
 	clearValues[1].depthStencil = {1.0f, 0};
 
 	VkRenderPassBeginInfo rpbi{};
@@ -143,8 +158,8 @@ void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex,
 
 	if(!inMenu)
 		{
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-							  m_pipeline.getPipeline());
+			// --- SKY DRAW ---
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.getSkyPipeline());
 
 			VkViewport viewport{};
 			viewport.width = (float)m_swapchain.getExtent().width;
@@ -152,9 +167,18 @@ void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex,
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 			vkCmdSetViewport(cmd, 0, 1, &viewport);
+			
 			VkRect2D scissor{};
 			scissor.extent = m_swapchain.getExtent();
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+			auto ds = m_buffers.getDescriptorSet(m_currentFrame);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.getPipelineLayout(), 0, 1, &ds, 0, nullptr);
+			vkCmdDraw(cmd, 3, 1, 0, 0);
+
+			// --- WORLD DRAW ---
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+							  m_pipeline.getPipeline());
 
 			if(m_buffers.getIndexCount() > 0
 			   && m_buffers.getVertexBuffer() != VK_NULL_HANDLE)
@@ -216,7 +240,7 @@ void Renderer::drawFrame(const UniformBufferObject &ubo, bool inMenu)
 
 	vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
 	recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex,
-						draw_data, inMenu);
+						draw_data, inMenu, ubo.time);
 
 	VkSubmitInfo si{};
 	si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -280,6 +304,8 @@ void Renderer::cleanup()
 	m_swapchain.cleanup(m_context.getDevice());
 	m_buffers.cleanup(m_context.getDevice());
 	m_texture.cleanup(m_context.getDevice());
+	m_panoramaTexture.cleanup(m_context.getDevice());
+	m_logoTexture.cleanup(m_context.getDevice());
 	m_pipeline.cleanup(m_context.getDevice());
 
 	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)

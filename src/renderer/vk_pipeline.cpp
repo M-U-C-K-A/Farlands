@@ -11,10 +11,12 @@ void VkPipelineManager::create(VkContext &ctx, VkSwapchain &swapchain)
 					 ctx.getPhysicalDevice());
 	createDescriptorSetLayout(ctx.getDevice());
 	createGraphicsPipeline(ctx.getDevice());
+	createSkyPipeline(ctx.getDevice());
 }
 
 void VkPipelineManager::cleanup(VkDevice device)
 {
+	vkDestroyPipeline(device, m_skyPipeline, nullptr);
 	vkDestroyPipeline(device, m_graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, m_pipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, m_descriptorSetLayout, nullptr);
@@ -131,7 +133,7 @@ void VkPipelineManager::createDescriptorSetLayout(VkDevice device)
 	uboBinding.binding = 0;
 	uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	uboBinding.descriptorCount = 1;
-	uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
 	samplerLayoutBinding.binding = 1;
@@ -231,6 +233,7 @@ void VkPipelineManager::createGraphicsPipeline(VkDevice device)
 
 	VkPipelineColorBlendAttachmentState colorBlendAtt{};
 	colorBlendAtt.colorWriteMask = 0xF;
+	colorBlendAtt.blendEnable = VK_FALSE;
 
 	VkPipelineColorBlendStateCreateInfo colorBlend{};
 	colorBlend.sType
@@ -272,6 +275,98 @@ void VkPipelineManager::createGraphicsPipeline(VkDevice device)
 								 nullptr, &m_graphicsPipeline)
 	   != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline");
+
+	vkDestroyShaderModule(device, fragModule, nullptr);
+	vkDestroyShaderModule(device, vertModule, nullptr);
+}
+
+// ── Sky Pipeline ───────────────────────────────────────────
+void VkPipelineManager::createSkyPipeline(VkDevice device)
+{
+	auto vertCode = readFile(std::string(SHADER_DIR) + "/sky.vert.spv");
+	auto fragCode = readFile(std::string(SHADER_DIR) + "/sky.frag.spv");
+	VkShaderModule vertModule = createShaderModule(device, vertCode);
+	VkShaderModule fragModule = createShaderModule(device, fragCode);
+
+	VkPipelineShaderStageCreateInfo vertStage{};
+	vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertStage.module = vertModule;
+	vertStage.pName = "main";
+
+	VkPipelineShaderStageCreateInfo fragStage{};
+	fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragStage.module = fragModule;
+	fragStage.pName = "main";
+
+	VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
+
+	VkPipelineVertexInputStateCreateInfo vertexInput{};
+	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	// Aucun paramètre de sommet, gl_VertexIndex fait le travail
+	vertexInput.vertexBindingDescriptionCount = 0;
+	vertexInput.vertexAttributeDescriptionCount = 0;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAsm{};
+	inputAsm.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAsm.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+	VkPipelineViewportStateCreateInfo viewportState{};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.viewportCount = 1;
+	viewportState.scissorCount = 1;
+
+	VkPipelineRasterizationStateCreateInfo rast{};
+	rast.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rast.polygonMode = VK_POLYGON_MODE_FILL;
+	rast.lineWidth = 1.0f;
+	rast.cullMode = VK_CULL_MODE_NONE;
+	rast.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+	VkPipelineMultisampleStateCreateInfo ms{};
+	ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_FALSE; // Très important: le ciel n'écrit pas la profondeur !
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; // Z = 1.0
+
+	VkPipelineColorBlendAttachmentState colorBlendAtt{};
+	colorBlendAtt.colorWriteMask = 0xF;
+	colorBlendAtt.blendEnable = VK_FALSE;
+
+	VkPipelineColorBlendStateCreateInfo colorBlend{};
+	colorBlend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlend.attachmentCount = 1;
+	colorBlend.pAttachments = &colorBlendAtt;
+
+	std::vector<VkDynamicState> dynStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+	VkPipelineDynamicStateCreateInfo dynState{};
+	dynState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynState.dynamicStateCount = static_cast<uint32_t>(dynStates.size());
+	dynState.pDynamicStates = dynStates.data();
+
+	VkGraphicsPipelineCreateInfo pipelineCI{};
+	pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineCI.stageCount = 2;
+	pipelineCI.pStages = stages;
+	pipelineCI.pVertexInputState = &vertexInput;
+	pipelineCI.pInputAssemblyState = &inputAsm;
+	pipelineCI.pViewportState = &viewportState;
+	pipelineCI.pRasterizationState = &rast;
+	pipelineCI.pMultisampleState = &ms;
+	pipelineCI.pDepthStencilState = &depthStencil;
+	pipelineCI.pColorBlendState = &colorBlend;
+	pipelineCI.pDynamicState = &dynState;
+	pipelineCI.layout = m_pipelineLayout;
+	pipelineCI.renderPass = m_renderPass;
+	pipelineCI.subpass = 0;
+
+	if(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCI, nullptr, &m_skyPipeline) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create sky pipeline");
 
 	vkDestroyShaderModule(device, fragModule, nullptr);
 	vkDestroyShaderModule(device, vertModule, nullptr);

@@ -16,6 +16,7 @@ class VkPipelineManager
 
 	VkRenderPass getRenderPass() const { return m_renderPass; }
 	VkPipeline getPipeline() const { return m_graphicsPipeline; }
+	VkPipeline getSkyPipeline() const { return m_skyPipeline; }
 	VkPipelineLayout getPipelineLayout() const { return m_pipelineLayout; }
 	VkDescriptorSetLayout getDescriptorSetLayout() const
 	{
@@ -27,11 +28,13 @@ class VkPipelineManager
 	VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
 	VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
 	VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
+	VkPipeline m_skyPipeline = VK_NULL_HANDLE;
 
 	void createRenderPass(VkDevice device, VkFormat swapchainFormat,
 						  VkPhysicalDevice physDevice);
 	void createDescriptorSetLayout(VkDevice device);
 	void createGraphicsPipeline(VkDevice device);
+	void createSkyPipeline(VkDevice device);
 
 	VkShaderModule
 	createShaderModule(VkDevice device, const std::vector<char> &code);

@@ -7,38 +7,44 @@
 
 #include <GLFW/glfw3.h>
 
+#include "player/player.h"
 #include "renderer/camera.h"
 #include "renderer/renderer.h"
 #include "ui/menu.h"
 #include "world/world.h"
 
-// -----------------------------------------------------------------------------
-// Fichier : app.h
-// Rôle : Définition de la classe Application qui orchestre tout le jeu.
-// -----------------------------------------------------------------------------
 class Application
 {
   public:
-    // Lance l'application de bout en bout (init, boucle principale, nettoyage)
 	void run();
 
   private:
-    // Initialise la fenêtre GLFW
 	void initWindow();
-    // Boucle principale de rendu et de mise à jour physique
 	void mainLoop();
-    // Nettoie les ressources Vulkan et la fenêtre
 	void cleanup();
 
-    // Callback invoqué par GLFW lorsque la fenêtre est redimensionnée
 	static void
 	framebufferResizeCallback(GLFWwindow *window, int width, int height);
+	static void
+	cursorPosCallback(GLFWwindow *window, double xpos, double ypos);
 
 	GLFWwindow *m_window = nullptr;
 	Renderer m_renderer;
 	Camera m_camera;
 	MainMenu m_menu;
 	World m_world;
+	Player m_player;
+
+	// État souris
+	bool m_firstMouse = true;
+	double m_lastMouseX = 0.0;
+	double m_lastMouseY = 0.0;
+	bool m_cursorCaptured = false;
+
+	// Monde infini
+	int m_lastPlayerChunkX = INT_MIN;
+	int m_lastPlayerChunkZ = INT_MIN;
+	static constexpr int RENDER_RADIUS = 5;
 
 	static constexpr int WIDTH = 1280;
 	static constexpr int HEIGHT = 720;

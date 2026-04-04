@@ -237,10 +237,17 @@ VkSurfaceFormatKHR VkSwapchain::chooseSwapSurfaceFormat(
 VkPresentModeKHR
 VkSwapchain::chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &modes)
 {
+	// Priority 1: IMMEDIATE (Uncapped FPS)
+	for(auto m : modes)
+		if(m == VK_PRESENT_MODE_IMMEDIATE_KHR)
+			return m;
+
+	// Priority 2: MAILBOX (Triple buffering, uncapped internal but presenting at screen rate)
 	for(auto m : modes)
 		if(m == VK_PRESENT_MODE_MAILBOX_KHR)
 			return m;
-	return VK_PRESENT_MODE_FIFO_KHR;
+
+	return VK_PRESENT_MODE_FIFO_KHR; // Fallback: VSYNC
 }
 
 VkExtent2D VkSwapchain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &caps,

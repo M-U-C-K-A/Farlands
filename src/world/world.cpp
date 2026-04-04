@@ -1,77 +1,10 @@
 #include "world.h"
 #include "block.h"
+#include "chunk_serializer.h"
 
 #include <cmath>
+#include <filesystem>
 #include <iostream>
-
-// ── Generate ────────────────────────────────────────────────────
-void World::generate(int radius)
-{
-	m_radius = radius;
-	m_chunks.clear();
-
-	for(int cx = -radius; cx <= radius; ++cx)
-		{
-			for(int cz = -radius; cz <= radius; ++cz)
-				{
-					auto chunk = std::make_unique<Chunk>(cx, cz);
-					generateTerrain(*chunk);
-					m_chunks[glm::ivec2(cx, cz)] = std::move(chunk);
-				}
-		}
-
-	int count = static_cast<int>(m_chunks.size());
-	std::cout << "[World] Generated " << count << " chunks (radius=" << radius
-			  << ")" << std::endl;
-}
-
-// ── Terrain Generation ──────────────────────────────────────────
-void World::generateTerrain(Chunk &chunk)
-{
-	auto pos = chunk.getChunkPos();
-
-	for(int x = 0; x < CHUNK_SIZE_X; ++x)
-		{
-			for(int z = 0; z < CHUNK_SIZE_Z; ++z)
-				{
-					// World-space coordinates
-					float wx = static_cast<float>(pos.x * CHUNK_SIZE_X + x);
-					float wz = static_cast<float>(pos.y * CHUNK_SIZE_Z + z);
-
-					// Simple height map using sin/cos for hills
-					float h1 = std::sin(wx * 0.05f) * 4.0f;
-					float h2 = std::cos(wz * 0.07f) * 3.0f;
-					float h3 = std::sin((wx + wz) * 0.03f) * 5.0f;
-					int height = 15 + static_cast<int>(h1 + h2 + h3);
-
-					if(height < 1)
-						height = 1;
-					if(height > 60)
-						height = 60;
-
-					for(int y = 0; y < height; ++y)
-						{
-							if(y == 0)
-								{
-									chunk.setBlock(x, y, z,
-												   BlockType::Bedrock);
-								}
-							else if(y < height - 4)
-								{
-									chunk.setBlock(x, y, z, BlockType::Stone);
-								}
-							else if(y < height - 1)
-								{
-									chunk.setBlock(x, y, z, BlockType::Dirt);
-								}
-							else
-								{
-									chunk.setBlock(x, y, z, BlockType::Grass);
-								}
-						}
-				}
-		}
-}
 
 // ── Chunk Access ────────────────────────────────────────────────
 Chunk *World::getChunk(int cx, int cz)
@@ -86,6 +19,160 @@ const Chunk *World::getChunk(int cx, int cz) const
 	return it != m_chunks.end() ? it->second.get() : nullptr;
 }
 
+// ── World-space Block Query ─────────────────────────────────────
+BlockType World::getBlockAt(int wx, int wy, int wz) const
+{
+	if(wy < 0 || wy >= CHUNK_SIZE_Y)
+		return BlockType::Air;
+
+	int cx = (wx >= 0) ? (wx / CHUNK_SIZE_X)
+					   : ((wx - CHUNK_SIZE_X + 1) / CHUNK_SIZE_X);
+	int cz = (wz >= 0) ? (wz / CHUNK_SIZE_Z)
+					   : ((wz - CHUNK_SIZE_Z + 1) / CHUNK_SIZE_Z);
+
+	int lx = wx - cx * CHUNK_SIZE_X;
+	int lz = wz - cz * CHUNK_SIZE_Z;
+
+	const Chunk *chunk = getChunk(cx, cz);
+	if(!chunk)
+		return BlockType::Air;
+
+	return chunk->getBlock(lx, wy, lz);
+}
+
+// ── Set World Directory ─────────────────────────────────────────
+void World::setWorldDir(const std::string &dir)
+{
+	m_worldDir = dir;
+	std::filesystem::create_directories(m_worldDir);
+}
+
+// ── Terrain Generation (Biome-driven) ───────────────────────────
+void World::generateTerrain(Chunk &chunk)
+{
+	auto pos = chunk.getChunkPos();
+
+	for(int x = 0; x < CHUNK_SIZE_X; ++x)
+		{
+			for(int z = 0; z < CHUNK_SIZE_Z; ++z)
+				{
+					float wx = static_cast<float>(pos.x * CHUNK_SIZE_X + x);
+					float wz = static_cast<float>(pos.y * CHUNK_SIZE_Z + z);
+
+					// Obtenir la hauteur et le biome via le BiomeManager
+					int height = m_biomeManager.getHeightAt(wx, wz);
+					BiomeType biome = m_biomeManager.getBiomeAt(wx, wz);
+					const BiomeData &bd = BiomeManager::getData(biome);
+
+					for(int y = 0; y < height; ++y)
+						{
+							if(y == 0)
+								{
+									chunk.setBlock(x, y, z,
+												   BlockType::Bedrock);
+								}
+							else if(y < height - bd.subSurfaceDepth)
+								{
+									chunk.setBlock(x, y, z, BlockType::Stone);
+								}
+							else if(y < height - 1)
+								{
+									chunk.setBlock(x, y, z, bd.subSurface);
+								}
+							else
+								{
+									chunk.setBlock(x, y, z, bd.surfaceBlock);
+								}
+						}
+
+					// Eau dans les océans et lacs (remplir jusqu'au
+					// niveau de la mer = 30)
+					int seaLevel = 30;
+					if(height < seaLevel)
+						{
+							for(int y = height; y < seaLevel; ++y)
+								{
+									chunk.setBlock(x, y, z, BlockType::Water);
+								}
+						}
+				}
+		}
+}
+
+// ── Update Around Player (Infinite World) ───────────────────────
+bool World::updateAroundPlayer(int playerChunkX, int playerChunkZ,
+							   int renderRadius)
+{
+	m_radius = renderRadius;
+	bool changed = false;
+
+	// 1. Charger/générer les chunks dans le rayon
+	for(int cx = playerChunkX - renderRadius;
+		cx <= playerChunkX + renderRadius; ++cx)
+		{
+			for(int cz = playerChunkZ - renderRadius;
+				cz <= playerChunkZ + renderRadius; ++cz)
+				{
+					glm::ivec2 key(cx, cz);
+					if(m_chunks.find(key) != m_chunks.end())
+						continue; // Déjà chargé
+
+					auto chunk = std::make_unique<Chunk>(cx, cz);
+
+					// Essayer de charger depuis le disque
+					if(!m_worldDir.empty()
+					   && ChunkSerializer::load(*chunk, m_worldDir))
+						{
+							// Chunk chargé depuis le disque
+						}
+					else
+						{
+							// Générer le terrain
+							generateTerrain(*chunk);
+
+							// Sauvegarder sur disque
+							if(!m_worldDir.empty())
+								ChunkSerializer::save(*chunk, m_worldDir);
+						}
+
+					// Mark new chunk and neighbors as dirty for meshing
+					chunk->setDirty();
+					if(Chunk* n = getChunk(cx + 1, cz)) n->setDirty();
+					if(Chunk* n = getChunk(cx - 1, cz)) n->setDirty();
+					if(Chunk* n = getChunk(cx, cz + 1)) n->setDirty();
+					if(Chunk* n = getChunk(cx, cz - 1)) n->setDirty();
+
+					m_chunks[key] = std::move(chunk);
+					changed = true;
+				}
+		}
+
+	// 2. Décharger les chunks hors du rayon (avec marge +2 pour éviter le
+	// flickering)
+	int unloadRadius = renderRadius + 2;
+	std::vector<glm::ivec2> toRemove;
+	for(auto &[pos, chunk] : m_chunks)
+		{
+			if(std::abs(pos.x - playerChunkX) > unloadRadius
+			   || std::abs(pos.y - playerChunkZ) > unloadRadius)
+				{
+					// Sauvegarder avant de décharger
+					if(!m_worldDir.empty())
+						ChunkSerializer::save(*chunk, m_worldDir);
+					toRemove.push_back(pos);
+				}
+		}
+
+	for(auto &pos : toRemove)
+		{
+			m_chunks.erase(pos);
+			m_chunkMeshes.erase(pos);
+			changed = true;
+		}
+
+	return changed;
+}
+
 // ── Build World Mesh ────────────────────────────────────────────
 void World::buildWorldMesh(std::vector<Vertex> &outVertices,
 						   std::vector<uint32_t> &outIndices)
@@ -95,171 +182,35 @@ void World::buildWorldMesh(std::vector<Vertex> &outVertices,
 
 	for(auto &[pos, chunk] : m_chunks)
 		{
+			// Generate if dirty
+			if(chunk->isDirty())
+				{
+					m_chunkMeshes[pos] = generateChunkMesh(*chunk, this);
+					chunk->clearDirty();
+				}
+
 			// Offset in world coordinates
 			float offsetX = static_cast<float>(pos.x * CHUNK_SIZE_X);
 			float offsetZ = static_cast<float>(pos.y * CHUNK_SIZE_Z);
 
-			// Find max height for borders
-			int maxHeight = 0;
-			for(int y = CHUNK_SIZE_Y - 1; y >= 0; --y)
-				{
-					bool found = false;
-					for(int x = 0; x < CHUNK_SIZE_X; ++x)
-						{
-							for(int z = 0; z < CHUNK_SIZE_Z; ++z)
-								{
-									if(chunk->getBlock(x, y, z)
-									   != BlockType::Air)
-										{
-											maxHeight = y;
-											found = true;
-											break;
-										}
-								}
-							if(found)
-								break;
-						}
-					if(found)
-						break;
-				}
-
-			// Generate chunk mesh
-			ChunkMesh mesh = generateChunkMesh(*chunk, this);
-
-			// Offset vertices to world space
+			// Append cached chunk mesh
+			const ChunkMesh& mesh = m_chunkMeshes[pos];
 			uint32_t baseIndex = static_cast<uint32_t>(outVertices.size());
-			for(auto &v : mesh.vertices)
+			
+			for(const auto &v : mesh.vertices)
 				{
-					v.pos.x += offsetX;
-					v.pos.z += offsetZ;
-					outVertices.push_back(v);
+					Vertex wv = v;
+					wv.pos.x += offsetX;
+					wv.pos.z += offsetZ;
+					outVertices.push_back(wv);
 				}
 			for(auto idx : mesh.indices)
 				{
 					outIndices.push_back(baseIndex + idx);
 				}
-
-			// Add chunk border lines (dynamique selon la hauteur du chunk)
-			addChunkBorders(outVertices, outIndices, pos.x, pos.y, maxHeight);
 		}
 
 	std::cout << "[World] Built world mesh: " << outVertices.size()
-			  << " vertices, " << outIndices.size() << " indices" << std::endl;
-}
-
-// ── Chunk Border Visualization ──────────────────────────────────
-void World::addChunkBorders(std::vector<Vertex> &vertices,
-							std::vector<uint32_t> &indices, int cx, int cz,
-							int terrainHeight)
-{
-	float x0 = static_cast<float>(cx * CHUNK_SIZE_X);
-	float z0 = static_cast<float>(cz * CHUNK_SIZE_Z);
-	float x1 = x0 + CHUNK_SIZE_X;
-	float z1 = z0 + CHUNK_SIZE_Z;
-
-	// Couleur des bordures : jaune vif pour être bien visible
-	glm::vec3 borderColor(1.0f, 0.85f, 0.0f);
-	float borderWidth = 0.05f;
-
-	// Hauteur des piliers de bordure
-	float maxY = static_cast<float>(terrainHeight + 5);
-
-	// Dessiner 4 piliers fins aux coins du chunk
-	auto addPillar = [&](float px, float pz) {
-		uint32_t base = static_cast<uint32_t>(vertices.size());
-		float bw = borderWidth;
-
-		glm::vec2 whiteUv(1.0f, 1.0f);
-
-		// 8 sommets d'un pilier fin
-		vertices.push_back({{px - bw, 0, pz - bw}, borderColor, whiteUv});
-		vertices.push_back({{px + bw, 0, pz - bw}, borderColor, whiteUv});
-		vertices.push_back({{px + bw, 0, pz + bw}, borderColor, whiteUv});
-		vertices.push_back({{px - bw, 0, pz + bw}, borderColor, whiteUv});
-		vertices.push_back({{px - bw, maxY, pz - bw}, borderColor, whiteUv});
-		vertices.push_back({{px + bw, maxY, pz - bw}, borderColor, whiteUv});
-		vertices.push_back({{px + bw, maxY, pz + bw}, borderColor, whiteUv});
-		vertices.push_back({{px - bw, maxY, pz + bw}, borderColor, whiteUv});
-
-		// 6 faces × 2 triangles
-		// Front
-		indices.insert(
-		  indices.end(),
-		  {base + 0, base + 1, base + 5, base + 5, base + 4, base + 0,
-		   // Back
-		   base + 2, base + 3, base + 7, base + 7, base + 6, base + 2,
-		   // Left
-		   base + 3, base + 0, base + 4, base + 4, base + 7, base + 3,
-		   // Right
-		   base + 1, base + 2, base + 6, base + 6, base + 5, base + 1,
-		   // Top
-		   base + 4, base + 5, base + 6, base + 6, base + 7, base + 4,
-		   // Bottom
-		   base + 3, base + 2, base + 1, base + 1, base + 0, base + 3});
-	};
-
-	addPillar(x0, z0);
-	addPillar(x1, z0);
-	addPillar(x0, z1);
-	addPillar(x1, z1);
-
-	// Barre horizontale en haut reliant les piliers (4 barres)
-	auto addBar = [&](float ax, float az, float bx, float bz) {
-		uint32_t base = static_cast<uint32_t>(vertices.size());
-		float bw = borderWidth;
-		float barY = maxY - bw;
-
-		glm::vec2 whiteUv(1.0f, 1.0f);
-
-		vertices.push_back({{ax - bw, barY, az - bw}, borderColor, whiteUv});
-		vertices.push_back({{bx + bw, barY, bz - bw}, borderColor, whiteUv});
-		vertices.push_back({{bx + bw, barY, bz + bw}, borderColor, whiteUv});
-		vertices.push_back({{ax - bw, barY, az + bw}, borderColor, whiteUv});
-		vertices.push_back({{ax - bw, maxY, az - bw}, borderColor, whiteUv});
-		vertices.push_back({{bx + bw, maxY, bz - bw}, borderColor, whiteUv});
-		vertices.push_back({{bx + bw, maxY, bz + bw}, borderColor, whiteUv});
-		vertices.push_back({{ax - bw, maxY, az + bw}, borderColor, whiteUv});
-
-		indices.insert(
-		  indices.end(),
-		  {base + 0, base + 1, base + 5, base + 5, base + 4, base + 0,
-		   base + 2, base + 3, base + 7, base + 7, base + 6, base + 2,
-		   base + 3, base + 0, base + 4, base + 4, base + 7, base + 3,
-		   base + 1, base + 2, base + 6, base + 6, base + 5, base + 1,
-		   base + 4, base + 5, base + 6, base + 6, base + 7, base + 4,
-		   base + 3, base + 2, base + 1, base + 1, base + 0, base + 3});
-	};
-
-	// 4 barres en haut connectant les coins du chunk
-	addBar(x0, z0, x1, z0); // North edge
-	addBar(x0, z1, x1, z1); // South edge
-	// For east/west edges, swap x/z logic
-	auto addBarZ = [&](float ax, float az, float bx, float bz) {
-		uint32_t base = static_cast<uint32_t>(vertices.size());
-		float bw = borderWidth;
-		float barY = maxY - bw;
-
-		glm::vec2 whiteUv(1.0f, 1.0f);
-
-		vertices.push_back({{ax - bw, barY, az - bw}, borderColor, whiteUv});
-		vertices.push_back({{bx - bw, barY, bz + bw}, borderColor, whiteUv});
-		vertices.push_back({{bx + bw, barY, bz + bw}, borderColor, whiteUv});
-		vertices.push_back({{ax + bw, barY, az - bw}, borderColor, whiteUv});
-		vertices.push_back({{ax - bw, maxY, az - bw}, borderColor, whiteUv});
-		vertices.push_back({{bx - bw, maxY, bz + bw}, borderColor, whiteUv});
-		vertices.push_back({{bx + bw, maxY, bz + bw}, borderColor, whiteUv});
-		vertices.push_back({{ax + bw, maxY, az - bw}, borderColor, whiteUv});
-
-		indices.insert(
-		  indices.end(),
-		  {base + 0, base + 1, base + 5, base + 5, base + 4, base + 0,
-		   base + 2, base + 3, base + 7, base + 7, base + 6, base + 2,
-		   base + 3, base + 0, base + 4, base + 4, base + 7, base + 3,
-		   base + 1, base + 2, base + 6, base + 6, base + 5, base + 1,
-		   base + 4, base + 5, base + 6, base + 6, base + 7, base + 4,
-		   base + 3, base + 2, base + 1, base + 1, base + 0, base + 3});
-	};
-
-	addBarZ(x0, z0, x0, z1); // West edge
-	addBarZ(x1, z0, x1, z1); // East edge
+			  << " vertices, " << outIndices.size() << " indices ("
+			  << m_chunks.size() << " chunks)" << std::endl;
 }
