@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "../world/block.h"
 
 // ── Init ────────────────────────────────────────────────────────
 void Renderer::init(GLFWwindow *window)
@@ -22,8 +23,14 @@ void Renderer::init(GLFWwindow *window)
 	m_swapchain.createFramebuffers(m_context.getDevice(),
 								   m_pipeline.getRenderPass());
 
-	// 4. Texture & Atlas
-	m_texture.init(m_context, std::string(ASSETS_DIR) + "/textures/atlas.png");
+	// 4. Textures Array & UI Resources
+	std::vector<std::string> texturePaths = BlockDatabase::GetTexturePaths();
+	std::vector<std::string> absPaths;
+	for (const auto& p : texturePaths) {
+	    if (!p.empty()) absPaths.push_back(std::string(ASSETS_DIR) + "/" + p);
+	    else absPaths.push_back("");
+	}
+	m_texture.initArray(m_context, absPaths);
 	m_panoramaTexture.init(m_context, std::string(ASSETS_DIR) + "/textures/gui/title/background/panorama_0.png");
 	m_logoTexture.init(m_context, std::string(ASSETS_DIR) + "/Farlands.png");
 

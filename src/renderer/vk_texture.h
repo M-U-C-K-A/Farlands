@@ -7,6 +7,7 @@
 class VkTexture {
 public:
     void init(VkContext& ctx, const std::string& path);
+    void initArray(VkContext& ctx, const std::vector<std::string>& paths);
     void cleanup(VkDevice device);
 
     VkImageView getImageView() const { return m_imageView; }
@@ -18,7 +19,7 @@ private:
     VkImageView m_imageView = VK_NULL_HANDLE;
     VkSampler m_sampler = VK_NULL_HANDLE;
 
-    void createImage(VkContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-    void transitionImageLayout(VkContext& ctx, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-    void copyBufferToImage(VkContext& ctx, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+    void createImage(VkContext& ctx, uint32_t width, uint32_t height, uint32_t layerCount, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
+    void transitionImageLayout(VkContext& ctx, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount);
+    void copyBufferToImage(VkContext& ctx, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount);
 };

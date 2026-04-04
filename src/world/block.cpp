@@ -9,6 +9,7 @@ using json = nlohmann::json;
 
 // ── Static members ──────────────────────────────────────────────
 std::unordered_map<uint8_t, BlockData> BlockDatabase::s_database;
+std::vector<std::string> BlockDatabase::s_texturePaths;
 bool BlockDatabase::s_loaded = false;
 
 // ── Load from JSON ──────────────────────────────────────────────
@@ -28,7 +29,35 @@ void BlockDatabase::LoadFromFile(const std::string &jsonPath) {
     data.isTransparent = b["transparent"].get<bool>();
     data.isSolid = b["solid"].get<bool>();
     data.hardness = b["hardness"].get<float>();
-    data.texturePath = b.value("texture", "");
+    
+    auto addTexture = [&](const std::string& tex) -> int {
+        if (tex.empty()) return 0;
+        auto it = std::find(s_texturePaths.begin(), s_texturePaths.end(), tex);
+        if (it != s_texturePaths.end()) {
+            return static_cast<int>(std::distance(s_texturePaths.begin(), it));
+        }
+        s_texturePaths.push_back(tex);
+        return static_cast<int>(s_texturePaths.size() - 1);
+    };
+
+    if (s_texturePaths.empty()) {
+        s_texturePaths.push_back(""); // Index 0 represents Air / Transparent
+    }
+
+    std::string texGeneral = b.value("texture", "");
+    std::string texTop = b.value("textureTop", texGeneral);
+    std::string texBottom = b.value("textureBottom", texGeneral);
+    std::string texFront = b.value("textureFront", texGeneral);
+    std::string texBack = b.value("textureBack", texGeneral);
+    std::string texLeft = b.value("textureLeft", texGeneral);
+    std::string texRight = b.value("textureRight", texGeneral);
+
+    data.texLayerTop = addTexture(texTop);
+    data.texLayerBottom = addTexture(texBottom);
+    data.texLayerFront = addTexture(texFront);
+    data.texLayerBack = addTexture(texBack);
+    data.texLayerLeft = addTexture(texLeft);
+    data.texLayerRight = addTexture(texRight);
 
     auto c = b["color"];
     data.color = glm::vec3(c[0].get<float>(), c[1].get<float>(),

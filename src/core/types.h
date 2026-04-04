@@ -15,7 +15,7 @@ struct Vertex
 {
 	glm::vec3 pos;
 	glm::vec3 color;
-	glm::vec2 texCoord;
+	glm::vec3 texCoord;
 	glm::vec3 normal;
 	float ao; // Ambient Occlusion factor [0..1], 1 = fully lit
 	float blockType; // ID du bloc (ex: 9 = Eau)
@@ -48,7 +48,7 @@ struct Vertex
 		// texCoord
 		attrs[2].binding = 0;
 		attrs[2].location = 2;
-		attrs[2].format = VK_FORMAT_R32G32_SFLOAT;
+		attrs[2].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attrs[2].offset = offsetof(Vertex, texCoord);
 		// normal
 		attrs[3].binding = 0;

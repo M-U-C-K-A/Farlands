@@ -39,7 +39,14 @@ struct BlockData {
   bool isTransparent;
   bool isSolid;
   float hardness;
-  std::string texturePath;
+  // Texture indices into the global texture array
+  int texLayerFront;
+  int texLayerBack;
+  int texLayerTop;
+  int texLayerBottom;
+  int texLayerLeft;
+  int texLayerRight;
+
   glm::vec3 color;    // couleur par défaut (côtés)
   glm::vec3 colorTop; // couleur du dessus (si différente)
 };
@@ -61,7 +68,11 @@ public:
   /// Vérifie si la DB est chargée
   static bool IsLoaded() { return s_loaded; }
 
+  /// Retourne les chemins de textures uniques pour charger l'Array de Textures
+  static const std::vector<std::string>& GetTexturePaths() { return s_texturePaths; }
+
 private:
   static std::unordered_map<uint8_t, BlockData> s_database;
+  static std::vector<std::string> s_texturePaths;
   static bool s_loaded;
 };
