@@ -40,6 +40,7 @@ class Application
 	double m_lastMouseX = 0.0;
 	double m_lastMouseY = 0.0;
 	bool m_cursorCaptured = false;
+	bool m_menuWasActive = false;
 
 	// Monde infini
 	int m_lastPlayerChunkX = INT_MIN;

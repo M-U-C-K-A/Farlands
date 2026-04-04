@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <stdexcept>
+#include "core/logger.h"
 
 // ── Public ──────────────────────────────────────────────────────
 void VkSwapchain::create(VkContext &ctx, GLFWwindow *window)
@@ -96,6 +97,9 @@ void VkSwapchain::createSwapChain(VkContext &ctx, GLFWwindow *window)
 							m_images.data());
 	m_imageFormat = surfaceFormat.format;
 	m_extent = extent;
+
+	LOG_INFO("Swapchain created: " << m_extent.width << "x" << m_extent.height 
+			 << " with " << m_images.size() << " images.");
 }
 
 // ── Image Views ─────────────────────────────────────────────────

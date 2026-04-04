@@ -7,11 +7,11 @@
 #include "app.h"
 #include "world/biome.h"
 #include "world/block.h"
+#include "core/logger.h"
 
 #include <chrono>
 #include <cstdlib>
 #include <glm/gtc/matrix_transform.hpp>
-#include <iostream>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
@@ -53,13 +53,19 @@ void Application::cursorPosCallback(GLFWwindow *window, double xpos,
 // Initialise le contexte de la fenêtre GLFW
 void Application::initWindow()
 {
+	LOG_INFO("Initializing GLFW window...");
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	m_window = glfwCreateWindow(WIDTH, HEIGHT, "Farlands", nullptr, nullptr);
+	if(!m_window) {
+		LOG_ERROR("Failed to create GLFW window!");
+		throw std::runtime_error("Failed to create GLFW window");
+	}
 	glfwSetWindowUserPointer(m_window, this);
 	glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
 	glfwSetCursorPosCallback(m_window, cursorPosCallback);
+	LOG_SUCCESS("Window initialized successfully.");
 }
 
 // Boucle principale
@@ -93,12 +99,14 @@ void Application::mainLoop()
 					m_cursorCaptured = !m_cursorCaptured;
 					if(m_cursorCaptured)
 						{
+							LOG_NOTE("Cursor captured (Game mode)");
 							glfwSetInputMode(m_window, GLFW_CURSOR,
 											 GLFW_CURSOR_DISABLED);
 							m_firstMouse = true;
 						}
 					else
 						{
+							LOG_NOTE("Cursor released (UI mode)");
 							glfwSetInputMode(m_window, GLFW_CURSOR,
 											 GLFW_CURSOR_NORMAL);
 						}
@@ -298,6 +306,13 @@ void Application::mainLoop()
 
 			m_menu.draw(m_window, (ImTextureID)m_renderer.getPanoramaTextureId(), (ImTextureID)m_renderer.getLogoTextureId());
 
+			if (m_menu.isActive() && !m_menuWasActive) {
+				LOG_NOTE("Main Menu opened");
+			} else if (!m_menu.isActive() && m_menuWasActive) {
+				LOG_NOTE("Main Menu closed");
+			}
+			m_menuWasActive = m_menu.isActive();
+
 			m_renderer.drawFrame(ubo, m_menu.isActive());
 		}
 
@@ -316,10 +331,15 @@ void Application::cleanup()
 void Application::run()
 {
 	initWindow();
-	m_renderer.init(m_window);
 
-	// Charger la base de données de blocs depuis le JSON
+	// Charger la base de données de blocs depuis le JSON d'abord !
+	LOG_INFO("Loading block database...");
 	BlockDatabase::LoadFromFile(std::string(ASSETS_DIR) + "/data/blocks.json");
+	LOG_SUCCESS("Block database loaded.");
+
+	LOG_INFO("Initializing Vulkan renderer...");
+	m_renderer.init(m_window);
+	LOG_SUCCESS("Vulkan renderer initialized.");
 
 	// Configurer le dossier de sauvegarde du monde
 	std::string homeDir;
@@ -333,6 +353,7 @@ void Application::run()
 	// Chargement initial autour du spawn
 	m_lastPlayerChunkX = m_player.getChunkX();
 	m_lastPlayerChunkZ = m_player.getChunkZ();
+	LOG_INFO("Initial world setup around player...");
 	m_world.updateAroundPlayer(m_lastPlayerChunkX, m_lastPlayerChunkZ,
 							   RENDER_RADIUS);
 
@@ -342,8 +363,7 @@ void Application::run()
 	m_world.buildWorldMesh(vertices, indices);
 	m_renderer.updateBuffers(vertices, indices);
 
-	std::cout << "[App] World ready! Save dir: " << homeDir
-			  << "/.farlands/world" << std::endl;
+	LOG_SUCCESS("World ready! Save dir: " << homeDir << "/.farlands/world");
 
 	mainLoop();
 	cleanup();

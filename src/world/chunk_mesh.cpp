@@ -1,6 +1,7 @@
 #include "chunk_mesh.h"
 #include "block.h"
 #include "world.h"
+#include "core/logger.h"
 
 // ── Ambient Occlusion ───────────────────────────────────────────
 // Calculates vertex AO based on three neighboring blocks (side1, side2, corner)
@@ -16,6 +17,7 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
   ChunkMesh mesh;
 
   glm::ivec2 cpos = chunk.getChunkPos();
+  LOG_TRACE("Generating mesh for chunk (" << cpos.x << ", " << cpos.y << ")...");
 
   auto getBlock = [&](int x, int y, int z) {
     if (y < 0 || y >= CHUNK_SIZE_Y) return BlockType::Air;
@@ -43,7 +45,7 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
   };
 
   auto addFace = [&](int x, int y, int z, int faceType, glm::vec3 color,
-                     int texX, int texY, float blockTypeID) {
+                     int texLayer, float blockTypeID) {
     uint32_t idx = static_cast<uint32_t>(mesh.vertices.size());
     float fx = static_cast<float>(x);
     float fy = static_cast<float>(y);
@@ -58,15 +60,13 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
     glm::vec3 p111(fx + 1, fy + 1, fz + 1);
     glm::vec3 p011(fx, fy + 1, fz + 1);
 
-    float u0 = static_cast<float>(texX) / 16.0f;
-    float v0 = static_cast<float>(texY) / 16.0f;
-    float u1 = u0 + (1.0f / 16.0f);
-    float v1 = v0 + (1.0f / 16.0f);
+    float layer = static_cast<float>(texLayer);
+    glm::vec3 uv00(0.0f, 0.0f, layer);
+    glm::vec3 uv10(1.0f, 0.0f, layer);
+    glm::vec3 uv01(0.0f, 1.0f, layer);
+    glm::vec3 uv11(1.0f, 1.0f, layer);
 
-    glm::vec2 uv00(u0, v0);
-    glm::vec2 uv10(u1, v0);
-    glm::vec2 uv01(u0, v1);
-    glm::vec2 uv11(u1, v1);
+
 
     glm::vec3 normal;
     float ao0, ao1, ao2, ao3;
@@ -167,26 +167,55 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
         glm::vec3 topColor = bd.colorTop;
         glm::vec3 botColor = (type == BlockType::Grass) ? BlockDatabase::Get(BlockType::Dirt).color : sideColor;
 
-        int bid = static_cast<int>(type);
-        int texX = bid;
-        int texSideY = 0;
-        int texTopY = 1;
+        // Coloration dynamique basée sur le Biome (Température et Humidité)
+        if (world != nullptr && (type == BlockType::Grass || type == BlockType::Leaves)) {
+            float wx = static_cast<float>(chunk.getChunkPos().x * CHUNK_SIZE_X + x);
+            float wz = static_cast<float>(chunk.getChunkPos().y * CHUNK_SIZE_Z + z);
+            float temp = world->getBiomeManager().getTemperature(wx, wz);
+            float hum = world->getBiomeManager().getHumidity(wx, wz);
 
-        int botTexX = (type == BlockType::Grass) ? static_cast<int>(BlockType::Dirt) : texX;
+            glm::vec3 tint(1.0f);
+            
+            // Plus chaud -> Herbe plus jaune/asséchée
+            tint.r += temp * 0.3f;
+            tint.g += temp * 0.1f;
+            tint.b -= temp * 0.4f;
+            
+            // Plus humide -> Herbe plus verte foncée/luxuriante
+            tint.r -= hum * 0.3f;
+            tint.g += hum * 0.4f;
+            tint.b -= hum * 0.1f;
+            
+            // Sécurité pour garder des couleurs viables
+            tint = glm::clamp(tint, 0.3f, 1.5f);
+
+            topColor *= tint;
+            if (type == BlockType::Leaves) {
+                sideColor *= tint;
+                botColor *= tint;
+            }
+        }
+
+        int layerFront = bd.texLayerFront;
+        int layerBack = bd.texLayerBack;
+        int layerTop = bd.texLayerTop;
+        int layerBot = bd.texLayerBottom;
+        int layerRight = bd.texLayerRight;
+        int layerLeft = bd.texLayerLeft;
 
         float fType = static_cast<float>(type);
         if (getBlock(x, y, z + 1) == BlockType::Air)
-          addFace(x, y, z, 0, sideColor, texX, texSideY, fType);
+          addFace(x, y, z, 0, sideColor, layerFront, fType);
         if (getBlock(x, y, z - 1) == BlockType::Air)
-          addFace(x, y, z, 1, sideColor, texX, texSideY, fType);
+          addFace(x, y, z, 1, sideColor, layerBack, fType);
         if (getBlock(x, y + 1, z) == BlockType::Air)
-          addFace(x, y, z, 2, topColor, texX, texTopY, fType);
+          addFace(x, y, z, 2, topColor, layerTop, fType);
         if (getBlock(x, y - 1, z) == BlockType::Air)
-          addFace(x, y, z, 3, botColor, botTexX, texSideY, fType);
+          addFace(x, y, z, 3, botColor, layerBot, fType);
         if (getBlock(x + 1, y, z) == BlockType::Air)
-          addFace(x, y, z, 4, sideColor, texX, texSideY, fType);
+          addFace(x, y, z, 4, sideColor, layerRight, fType);
         if (getBlock(x - 1, y, z) == BlockType::Air)
-          addFace(x, y, z, 5, sideColor, texX, texSideY, fType);
+          addFace(x, y, z, 5, sideColor, layerLeft, fType);
       }
     }
   }

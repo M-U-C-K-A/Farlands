@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
+#include "core/logger.h"
 #include <set>
 #include <stdexcept>
 #include <vector>
@@ -58,11 +58,22 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 void VkContext::init(GLFWwindow *window)
 {
 	m_window = window;
+	LOG_INFO("Creating Vulkan instance...");
 	createInstance();
+	LOG_SUCCESS("Vulkan instance created.");
+
 	setupDebugMessenger();
+
+	LOG_INFO("Creating window surface...");
 	createSurface();
+	LOG_SUCCESS("Window surface created.");
+
+	LOG_INFO("Selecting physical device (GPU)...");
 	pickPhysicalDevice();
+
+	LOG_INFO("Creating logical device and queues...");
 	createLogicalDevice();
+	LOG_SUCCESS("Logical device and queues ready.");
 }
 
 // ── Instance ────────────────────────────────────────────────────
@@ -216,6 +227,10 @@ void VkContext::pickPhysicalDevice()
 			if(isDeviceSuitable(d))
 				{
 					m_physicalDevice = d;
+
+					VkPhysicalDeviceProperties props;
+					vkGetPhysicalDeviceProperties(d, &props);
+					LOG_SUCCESS("GPU Selected: " << props.deviceName);
 					break;
 				}
 		}

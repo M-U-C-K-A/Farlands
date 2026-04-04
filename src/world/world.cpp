@@ -4,7 +4,7 @@
 
 #include <cmath>
 #include <filesystem>
-#include <iostream>
+#include "core/logger.h"
 
 // ── Chunk Access ────────────────────────────────────────────────
 Chunk *World::getChunk(int cx, int cz)
@@ -123,11 +123,11 @@ bool World::updateAroundPlayer(int playerChunkX, int playerChunkZ,
 					if(!m_worldDir.empty()
 					   && ChunkSerializer::load(*chunk, m_worldDir))
 						{
-							// Chunk chargé depuis le disque
+							LOG_DEBUG("Loaded chunk " << cx << ", " << cz << " from disk.");
 						}
 					else
 						{
-							// Générer le terrain
+							LOG_DEBUG("Generating chunk " << cx << ", " << cz << "...");
 							generateTerrain(*chunk);
 
 							// Sauvegarder sur disque
@@ -137,10 +137,14 @@ bool World::updateAroundPlayer(int playerChunkX, int playerChunkZ,
 
 					// Mark new chunk and neighbors as dirty for meshing
 					chunk->setDirty();
-					if(Chunk* n = getChunk(cx + 1, cz)) n->setDirty();
-					if(Chunk* n = getChunk(cx - 1, cz)) n->setDirty();
-					if(Chunk* n = getChunk(cx, cz + 1)) n->setDirty();
-					if(Chunk* n = getChunk(cx, cz - 1)) n->setDirty();
+					if(Chunk *n = getChunk(cx + 1, cz))
+						n->setDirty();
+					if(Chunk *n = getChunk(cx - 1, cz))
+						n->setDirty();
+					if(Chunk *n = getChunk(cx, cz + 1))
+						n->setDirty();
+					if(Chunk *n = getChunk(cx, cz - 1))
+						n->setDirty();
 
 					m_chunks[key] = std::move(chunk);
 					changed = true;
@@ -159,6 +163,7 @@ bool World::updateAroundPlayer(int playerChunkX, int playerChunkZ,
 					// Sauvegarder avant de décharger
 					if(!m_worldDir.empty())
 						ChunkSerializer::save(*chunk, m_worldDir);
+					LOG_DEBUG("Unloading chunk " << pos.x << ", " << pos.y);
 					toRemove.push_back(pos);
 				}
 		}
@@ -194,9 +199,9 @@ void World::buildWorldMesh(std::vector<Vertex> &outVertices,
 			float offsetZ = static_cast<float>(pos.y * CHUNK_SIZE_Z);
 
 			// Append cached chunk mesh
-			const ChunkMesh& mesh = m_chunkMeshes[pos];
+			const ChunkMesh &mesh = m_chunkMeshes[pos];
 			uint32_t baseIndex = static_cast<uint32_t>(outVertices.size());
-			
+
 			for(const auto &v : mesh.vertices)
 				{
 					Vertex wv = v;
@@ -210,7 +215,7 @@ void World::buildWorldMesh(std::vector<Vertex> &outVertices,
 				}
 		}
 
-	std::cout << "[World] Built world mesh: " << outVertices.size()
-			  << " vertices, " << outIndices.size() << " indices ("
-			  << m_chunks.size() << " chunks)" << std::endl;
+	LOG_INFO("World mesh updated: " << outVertices.size()
+			 << " vertices, " << outIndices.size() << " indices ("
+			 << m_chunks.size() << " chunks)");
 }
