@@ -865,8 +865,7 @@ void Renderer::fillUniforms(FrameUniforms &u, const FrameParams &params,
 	u.cameraPos = glm::vec4(cam.getPosition(), params.time);
 	u.sunDir = glm::vec4(sunDir, 1.0f);
 	u.sunColor = glm::vec4(trans * SUN_IRRADIANCE, 1.0f);
-	u.fogParams = glm::vec4(0.0011f * settings.fogDensity, 0.012f,
-							static_cast<float>(settings.renderDistance * 16),
+	u.fogParams = glm::vec4(0.0011f * settings.fogDensity, 0.012f, params.viewDistance,
 							params.underwater ? 1.0f : 0.0f);
 	u.waterFog = glm::vec4(0.02f, 0.10f, 0.12f, 0.06f);
 	u.screen = glm::vec4(m_renderExtent.width, m_renderExtent.height,

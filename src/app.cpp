@@ -398,6 +398,8 @@ void Application::mainLoop()
 			FrameParams params;
 			params.camera = &m_camera;
 			params.time = time;
+			// Rayon effectivement chargé (le monde plafonne la distance de rendu)
+			params.viewDistance = static_cast<float>(m_world.getRenderRadius() * CHUNK_SIZE_X);
 			params.underwater = m_world.getBlockAt(static_cast<int>(std::floor(eye.x)),
 												   static_cast<int>(std::floor(eye.y)),
 												   static_cast<int>(std::floor(eye.z)))

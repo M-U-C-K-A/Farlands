@@ -38,6 +38,7 @@ struct FrameParams
 	const Camera *camera = nullptr;
 	float time = 0.0f;
 	bool underwater = false;
+	float viewDistance = 320.0f; // rayon réellement chargé (blocs) : brume de bord
 };
 
 class Renderer
