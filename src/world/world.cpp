@@ -1,221 +1,271 @@
 #include "world.h"
+
 #include "block.h"
 #include "chunk_serializer.h"
-
-#include <cmath>
-#include <filesystem>
 #include "core/logger.h"
 
-// ── Chunk Access ────────────────────────────────────────────────
-Chunk *World::getChunk(int cx, int cz)
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+
+// ── Construction ────────────────────────────────────────────────
+World::World(uint32_t seed) : m_generator(seed)
 {
-	auto it = m_chunks.find(glm::ivec2(cx, cz));
-	return it != m_chunks.end() ? it->second.get() : nullptr;
+	unsigned hw = std::thread::hardware_concurrency();
+	unsigned workers = hw > 3 ? hw - 2 : 2;
+	m_jobs = std::make_unique<JobSystem>(workers);
+	LOG_INFO("World: " << workers << " worker threads for generation/meshing");
 }
 
-const Chunk *World::getChunk(int cx, int cz) const
+World::~World()
 {
-	auto it = m_chunks.find(glm::ivec2(cx, cz));
-	return it != m_chunks.end() ? it->second.get() : nullptr;
+	// Arrête les threads avant de détruire les chunks qu'ils manipulent
+	m_jobs.reset();
 }
 
-// ── World-space Block Query ─────────────────────────────────────
-BlockType World::getBlockAt(int wx, int wy, int wz) const
-{
-	if(wy < 0 || wy >= CHUNK_SIZE_Y)
-		return BlockType::Air;
-
-	int cx = (wx >= 0) ? (wx / CHUNK_SIZE_X)
-					   : ((wx - CHUNK_SIZE_X + 1) / CHUNK_SIZE_X);
-	int cz = (wz >= 0) ? (wz / CHUNK_SIZE_Z)
-					   : ((wz - CHUNK_SIZE_Z + 1) / CHUNK_SIZE_Z);
-
-	int lx = wx - cx * CHUNK_SIZE_X;
-	int lz = wz - cz * CHUNK_SIZE_Z;
-
-	const Chunk *chunk = getChunk(cx, cz);
-	if(!chunk)
-		return BlockType::Air;
-
-	return chunk->getBlock(lx, wy, lz);
-}
-
-// ── Set World Directory ─────────────────────────────────────────
 void World::setWorldDir(const std::string &dir)
 {
 	m_worldDir = dir;
 	std::filesystem::create_directories(m_worldDir);
 }
 
-// ── Terrain Generation (Biome-driven) ───────────────────────────
-void World::generateTerrain(Chunk &chunk)
+void World::setRenderRadius(int radius)
 {
-	auto pos = chunk.getChunkPos();
-
-	for(int x = 0; x < CHUNK_SIZE_X; ++x)
+	radius = std::clamp(radius, 2, 48);
+	if(radius == m_radius)
+		return;
+	m_radius = radius;
+	m_atomicRadius = radius;
+	if(m_centerValid)
 		{
-			for(int z = 0; z < CHUNK_SIZE_Z; ++z)
-				{
-					float wx = static_cast<float>(pos.x * CHUNK_SIZE_X + x);
-					float wz = static_cast<float>(pos.y * CHUNK_SIZE_Z + z);
-
-					// Obtenir la hauteur et le biome via le BiomeManager
-					int height = m_biomeManager.getHeightAt(wx, wz);
-					BiomeType biome = m_biomeManager.getBiomeAt(wx, wz);
-					const BiomeData &bd = BiomeManager::getData(biome);
-
-					for(int y = 0; y < height; ++y)
-						{
-							if(y == 0)
-								{
-									chunk.setBlock(x, y, z,
-												   BlockType::Bedrock);
-								}
-							else if(y < height - bd.subSurfaceDepth)
-								{
-									chunk.setBlock(x, y, z, BlockType::Stone);
-								}
-							else if(y < height - 1)
-								{
-									chunk.setBlock(x, y, z, bd.subSurface);
-								}
-							else
-								{
-									chunk.setBlock(x, y, z, bd.surfaceBlock);
-								}
-						}
-
-					// Eau dans les océans et lacs (remplir jusqu'au
-					// niveau de la mer = 30)
-					int seaLevel = 30;
-					if(height < seaLevel)
-						{
-							for(int y = height; y < seaLevel; ++y)
-								{
-									chunk.setBlock(x, y, z, BlockType::Water);
-								}
-						}
-				}
+			unloadFar();
+			scheduleAround();
 		}
 }
 
-// ── Update Around Player (Infinite World) ───────────────────────
-bool World::updateAroundPlayer(int playerChunkX, int playerChunkZ,
-							   int renderRadius)
+bool World::inRadius(const glm::ivec2 &pos, float radius) const
 {
-	m_radius = renderRadius;
-	bool changed = false;
+	float dx = static_cast<float>(pos.x - m_center.x);
+	float dz = static_cast<float>(pos.y - m_center.y);
+	return dx * dx + dz * dz <= radius * radius;
+}
 
-	// 1. Charger/générer les chunks dans le rayon
-	for(int cx = playerChunkX - renderRadius;
-		cx <= playerChunkX + renderRadius; ++cx)
+// ── Chunk Access ────────────────────────────────────────────────
+const Chunk *World::getChunk(int cx, int cz) const
+{
+	auto it = m_chunks.find(glm::ivec2(cx, cz));
+	return it != m_chunks.end() ? it->second.get() : nullptr;
+}
+
+BlockType World::getBlockAt(int wx, int wy, int wz) const
+{
+	if(wy < 0 || wy >= CHUNK_SIZE_Y)
+		return BlockType::Air;
+	int cx = floorDiv(wx, CHUNK_SIZE_X);
+	int cz = floorDiv(wz, CHUNK_SIZE_Z);
+	const Chunk *chunk = getChunk(cx, cz);
+	if(!chunk)
+		return BlockType::Air;
+	return chunk->getBlockUnchecked(wx - cx * CHUNK_SIZE_X, wy,
+									wz - cz * CHUNK_SIZE_Z);
+}
+
+bool World::isColumnLoaded(int wx, int wz) const
+{
+	return getChunk(floorDiv(wx, CHUNK_SIZE_X), floorDiv(wz, CHUNK_SIZE_Z))
+		   != nullptr;
+}
+
+// ── Update (thread principal) ───────────────────────────────────
+void World::update(const glm::vec3 &playerPos)
+{
+	glm::ivec2 pc(floorDiv(static_cast<int>(std::floor(playerPos.x)), CHUNK_SIZE_X),
+				  floorDiv(static_cast<int>(std::floor(playerPos.z)), CHUNK_SIZE_Z));
+	if(!m_centerValid || pc != m_center)
 		{
-			for(int cz = playerChunkZ - renderRadius;
-				cz <= playerChunkZ + renderRadius; ++cz)
-				{
-					glm::ivec2 key(cx, cz);
-					if(m_chunks.find(key) != m_chunks.end())
-						continue; // Déjà chargé
-
-					auto chunk = std::make_unique<Chunk>(cx, cz);
-
-					// Essayer de charger depuis le disque
-					if(!m_worldDir.empty()
-					   && ChunkSerializer::load(*chunk, m_worldDir))
-						{
-							LOG_DEBUG("Loaded chunk " << cx << ", " << cz << " from disk.");
-						}
-					else
-						{
-							LOG_DEBUG("Generating chunk " << cx << ", " << cz << "...");
-							generateTerrain(*chunk);
-
-							// Sauvegarder sur disque
-							if(!m_worldDir.empty())
-								ChunkSerializer::save(*chunk, m_worldDir);
-						}
-
-					// Mark new chunk and neighbors as dirty for meshing
-					chunk->setDirty();
-					if(Chunk *n = getChunk(cx + 1, cz))
-						n->setDirty();
-					if(Chunk *n = getChunk(cx - 1, cz))
-						n->setDirty();
-					if(Chunk *n = getChunk(cx, cz + 1))
-						n->setDirty();
-					if(Chunk *n = getChunk(cx, cz - 1))
-						n->setDirty();
-
-					m_chunks[key] = std::move(chunk);
-					changed = true;
-				}
+			m_center = pc;
+			m_centerValid = true;
+			m_atomicCX = pc.x;
+			m_atomicCZ = pc.y;
+			unloadFar();
+			scheduleAround();
 		}
+	drainResults();
+}
 
-	// 2. Décharger les chunks hors du rayon (avec marge +2 pour éviter le
-	// flickering)
-	int unloadRadius = renderRadius + 2;
+// Planifie la génération des chunks manquants (rayon de rendu + 1, pour que
+// les chunks du bord aient leurs voisins avant d'être maillés)
+void World::scheduleAround()
+{
+	int genR = m_radius + 1;
+	std::vector<std::pair<float, glm::ivec2>> todo;
+	for(int dx = -genR; dx <= genR; ++dx)
+		for(int dz = -genR; dz <= genR; ++dz)
+			{
+				glm::ivec2 pos = m_center + glm::ivec2(dx, dz);
+				float d2 = static_cast<float>(dx * dx + dz * dz);
+				if(d2 > (genR + 0.5f) * (genR + 0.5f))
+					continue;
+				if(m_chunks.count(pos) || m_genPending.count(pos))
+					continue;
+				todo.push_back({std::sqrt(d2), pos});
+			}
+	std::sort(todo.begin(), todo.end(),
+			  [](const auto &a, const auto &b) { return a.first < b.first; });
+
+	for(auto &[dist, pos] : todo)
+		{
+			m_genPending.insert(pos);
+			m_jobs->submit(dist, [this, pos] {
+				// Annulé si le joueur s'est éloigné entre-temps
+				int dx = pos.x - m_atomicCX.load();
+				int dz = pos.y - m_atomicCZ.load();
+				float r = static_cast<float>(m_atomicRadius.load()) + 2.5f;
+				if(static_cast<float>(dx * dx + dz * dz) > r * r)
+					{
+						std::lock_guard<std::mutex> lock(m_resultMutex);
+						m_genCancelled.push_back(pos);
+						return;
+					}
+
+				auto chunk = std::make_shared<Chunk>(pos.x, pos.y);
+				if(!m_worldDir.empty() && ChunkSerializer::load(*chunk, m_worldDir))
+					m_generator.computeTints(*chunk);
+				else
+					m_generator.generate(*chunk);
+
+				std::lock_guard<std::mutex> lock(m_resultMutex);
+				m_genResults.push_back(std::move(chunk));
+			});
+		}
+}
+
+void World::unloadFar()
+{
+	float unloadR = m_radius + 2.5f;
 	std::vector<glm::ivec2> toRemove;
 	for(auto &[pos, chunk] : m_chunks)
-		{
-			if(std::abs(pos.x - playerChunkX) > unloadRadius
-			   || std::abs(pos.y - playerChunkZ) > unloadRadius)
-				{
-					// Sauvegarder avant de décharger
-					if(!m_worldDir.empty())
-						ChunkSerializer::save(*chunk, m_worldDir);
-					LOG_DEBUG("Unloading chunk " << pos.x << ", " << pos.y);
-					toRemove.push_back(pos);
-				}
-		}
+		if(!inRadius(pos, unloadR))
+			toRemove.push_back(pos);
 
 	for(auto &pos : toRemove)
 		{
-			m_chunks.erase(pos);
-			m_chunkMeshes.erase(pos);
-			changed = true;
-		}
+			auto it = m_chunks.find(pos);
+			if(it->second->isModified() && !m_worldDir.empty())
+				ChunkSerializer::save(*it->second, m_worldDir);
+			m_chunks.erase(it);
 
-	return changed;
+			auto ms = m_meshState.find(pos);
+			if(ms != m_meshState.end())
+				{
+					if(ms->second == MeshState::Done)
+						{
+							m_events.push_back({pos, nullptr});
+							m_meshedCount--;
+						}
+					m_meshState.erase(ms);
+				}
+		}
 }
 
-// ── Build World Mesh ────────────────────────────────────────────
-void World::buildWorldMesh(std::vector<Vertex> &outVertices,
-						   std::vector<uint32_t> &outIndices)
+void World::tryScheduleMesh(const glm::ivec2 &pos)
 {
-	outVertices.clear();
-	outIndices.clear();
+	auto it = m_chunks.find(pos);
+	if(it == m_chunks.end())
+		return;
+	auto ms = m_meshState.find(pos);
+	if(ms != m_meshState.end())
+		return; // déjà maillé ou en cours
+	if(!inRadius(pos, m_radius + 0.5f))
+		return;
 
-	for(auto &[pos, chunk] : m_chunks)
+	ChunkNeighborhood n;
+	for(int dz = -1; dz <= 1; ++dz)
+		for(int dx = -1; dx <= 1; ++dx)
+			{
+				auto nit = m_chunks.find(pos + glm::ivec2(dx, dz));
+				if(nit == m_chunks.end())
+					return; // un voisin manque encore
+				n.chunks[(dx + 1) + (dz + 1) * 3] = nit->second;
+			}
+
+	m_meshState[pos] = MeshState::Pending;
+	float dist = std::sqrt(static_cast<float>((pos.x - m_center.x) * (pos.x - m_center.x)
+											  + (pos.y - m_center.y) * (pos.y - m_center.y)));
+	m_jobs->submit(dist - 0.5f, [this, n = std::move(n)] {
+		auto mesh = std::make_shared<ChunkMeshData>(buildChunkMesh(n));
+		std::lock_guard<std::mutex> lock(m_resultMutex);
+		m_meshResults.push_back(std::move(mesh));
+	});
+}
+
+void World::drainResults()
+{
+	std::vector<std::shared_ptr<Chunk>> generated;
+	std::vector<glm::ivec2> cancelled;
+	std::vector<std::shared_ptr<ChunkMeshData>> meshes;
+	{
+		std::lock_guard<std::mutex> lock(m_resultMutex);
+		generated.swap(m_genResults);
+		cancelled.swap(m_genCancelled);
+		meshes.swap(m_meshResults);
+	}
+
+	for(auto &pos : cancelled)
+		m_genPending.erase(pos);
+
+	std::vector<glm::ivec2> added;
+	for(auto &chunk : generated)
 		{
-			// Generate if dirty
-			if(chunk->isDirty())
-				{
-					m_chunkMeshes[pos] = generateChunkMesh(*chunk, this);
-					chunk->clearDirty();
-				}
-
-			// Offset in world coordinates
-			float offsetX = static_cast<float>(pos.x * CHUNK_SIZE_X);
-			float offsetZ = static_cast<float>(pos.y * CHUNK_SIZE_Z);
-
-			// Append cached chunk mesh
-			const ChunkMesh &mesh = m_chunkMeshes[pos];
-			uint32_t baseIndex = static_cast<uint32_t>(outVertices.size());
-
-			for(const auto &v : mesh.vertices)
-				{
-					Vertex wv = v;
-					wv.pos.x += offsetX;
-					wv.pos.z += offsetZ;
-					outVertices.push_back(wv);
-				}
-			for(auto idx : mesh.indices)
-				{
-					outIndices.push_back(baseIndex + idx);
-				}
+			glm::ivec2 pos = chunk->getChunkPos();
+			m_genPending.erase(pos);
+			if(!inRadius(pos, m_radius + 2.5f))
+				continue; // trop loin désormais
+			m_chunks[pos] = std::move(chunk);
+			added.push_back(pos);
 		}
 
-	LOG_INFO("World mesh updated: " << outVertices.size()
-			 << " vertices, " << outIndices.size() << " indices ("
-			 << m_chunks.size() << " chunks)");
+	// Les chunks ajoutés et leurs voisins peuvent devenir maillables
+	for(const glm::ivec2 &pos : added)
+		for(int dz = -1; dz <= 1; ++dz)
+			for(int dx = -1; dx <= 1; ++dx)
+				tryScheduleMesh(pos + glm::ivec2(dx, dz));
+
+	for(auto &mesh : meshes)
+		{
+			auto ms = m_meshState.find(mesh->chunkPos);
+			if(ms == m_meshState.end() || ms->second != MeshState::Pending
+			   || !m_chunks.count(mesh->chunkPos))
+				continue;
+			ms->second = MeshState::Done;
+			m_meshedCount++;
+			m_events.push_back({mesh->chunkPos, std::move(mesh)});
+		}
+}
+
+std::vector<World::MeshEvent> World::takeMeshEvents(size_t maxUploads)
+{
+	std::vector<MeshEvent> out;
+	size_t uploads = 0;
+	while(!m_events.empty())
+		{
+			if(m_events.front().mesh)
+				{
+					if(uploads >= maxUploads)
+						break;
+					uploads++;
+				}
+			out.push_back(std::move(m_events.front()));
+			m_events.pop_front();
+		}
+	return out;
+}
+
+void World::saveAll()
+{
+	if(m_worldDir.empty())
+		return;
+	for(auto &[pos, chunk] : m_chunks)
+		if(chunk->isModified())
+			ChunkSerializer::save(*chunk, m_worldDir);
 }

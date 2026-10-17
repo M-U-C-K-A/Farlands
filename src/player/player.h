@@ -26,12 +26,32 @@ class Player
 	/// Applique la gravité, met à jour la position, résout les collisions
 	void update(float deltaTime, const World &world);
 
+	/// Téléporte le joueur (vitesse remise à zéro)
+	void setPosition(const glm::vec3 &pos)
+	{
+		m_position = pos;
+		m_velocity = glm::vec3(0.0f);
+	}
+
+	/// Place le joueur sur le terrain à sa position (x, z). startY >= 0 :
+	/// part de cette hauteur (sinon du plus haut bloc) puis remonte tant
+	/// que le joueur est dans un bloc solide.
+	void spawnOnSurface(const World &world, int startY = -1);
+
+	/// Oriente le regard (degrés)
+	void setLook(float yaw, float pitch)
+	{
+		m_yaw = yaw;
+		m_pitch = pitch;
+	}
+
 	// ── Accesseurs ──────────────────────────────────────────────
 	glm::vec3 getEyePosition() const;
 	glm::vec3 getFrontVector() const;
 	glm::vec3 getHorizontalFront() const;
 
 	bool isOnGround() const { return m_onGround; }
+	bool isInWater() const { return m_inWater; }
 	glm::vec3 getPosition() const { return m_position; }
 	glm::vec3 getVelocity() const { return m_velocity; }
 	float getYaw() const { return m_yaw; }
@@ -47,16 +67,26 @@ class Player
 	float m_yaw;
 	float m_pitch;
 	bool m_onGround;
+	bool m_inWater = false;
 
 	// ── Constantes physiques ────────────────────────────────────
 	static constexpr float GRAVITY = -20.0f;
 	static constexpr float JUMP_VELOCITY = 8.0f;
+	static constexpr float TERMINAL_VELOCITY = -50.0f;
+	static constexpr float SWIM_VELOCITY = 4.0f;
+	static constexpr float WATER_GRAVITY_SCALE = 0.25f;
+	static constexpr float WATER_SPEED_SCALE = 0.6f;
 	static constexpr float MOVE_SPEED = 6.0f;
 	static constexpr float MOUSE_SENSITIVITY = 0.1f;
 	static constexpr float PLAYER_HEIGHT = 1.8f;
+	static constexpr float EYE_HEIGHT = 1.62f;
 	static constexpr float PLAYER_WIDTH = 0.6f;
 
 	// ── Collision AABB ──────────────────────────────────────────
 	/// Teste si l'AABB du joueur à la position donnée chevauche un bloc solide
 	bool collidesAt(const World &world, const glm::vec3 &pos) const;
+	/// Teste si le corps du joueur est dans l'eau
+	bool isInWater(const World &world) const;
+	/// Déplace verticalement de dy en résolvant les collisions
+	void moveVertical(float dy, const World &world);
 };

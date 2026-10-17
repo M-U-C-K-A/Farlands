@@ -3,9 +3,12 @@
         {
             "id": 0,
             "name": "Air",
+            "renderType": "cube",
             "transparent": true,
             "solid": false,
             "hardness": 0.0,
+            "tint": "none",
+            "waving": false,
             "texture": "",
             "color": [
                 0.0,
@@ -21,10 +24,14 @@
         {
             "id": 1,
             "name": "Dirt",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 1.5,
-            "texture": "textures/block/dirt.png",
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/dirt_side.png",
+            "textureTop": "textures/block/dirt_top.png",
             "color": [
                 0.53,
                 0.38,
@@ -39,10 +46,15 @@
         {
             "id": 2,
             "name": "Grass",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 0.6,
+            "tint": "grass",
+            "waving": false,
             "texture": "textures/block/grass_block_side.png",
+            "textureTop": "textures/block/grass_block_top.png",
+            "textureBottom": "textures/block/dirt_side.png",
             "color": [
                 0.36,
                 0.58,
@@ -52,16 +64,17 @@
                 0.46,
                 0.72,
                 0.31
-            ],
-            "textureTop": "textures/block/grass_block_top.png",
-            "textureBottom": "textures/block/dirt.png"
+            ]
         },
         {
             "id": 3,
             "name": "Stone",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/stone.png",
             "color": [
                 0.5,
@@ -77,10 +90,15 @@
         {
             "id": 4,
             "name": "Log",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 2.0,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/oak_log_side.png",
+            "textureTop": "textures/block/oak_log_top.png",
+            "textureBottom": "textures/block/oak_log_top.png",
             "color": [
                 0.45,
                 0.3,
@@ -90,16 +108,17 @@
                 0.55,
                 0.4,
                 0.2
-            ],
-            "textureTop": "textures/block/oak_log_top.png",
-            "textureBottom": "textures/block/oak_log_top.png"
+            ]
         },
         {
             "id": 5,
             "name": "Plank",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/oak_planks.png",
             "color": [
                 0.65,
@@ -115,9 +134,12 @@
         {
             "id": 6,
             "name": "Glass",
+            "renderType": "cube",
             "transparent": true,
             "solid": true,
             "hardness": 0.3,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/glass.png",
             "color": [
                 0.7,
@@ -133,9 +155,12 @@
         {
             "id": 7,
             "name": "Leaves",
+            "renderType": "cube",
             "transparent": true,
             "solid": true,
             "hardness": 0.2,
+            "tint": "foliage",
+            "waving": true,
             "texture": "textures/block/oak_leaves.png",
             "color": [
                 0.25,
@@ -151,9 +176,12 @@
         {
             "id": 8,
             "name": "Sand",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 0.5,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/sand.png",
             "color": [
                 0.85,
@@ -169,9 +197,12 @@
         {
             "id": 9,
             "name": "Water",
+            "renderType": "liquid",
             "transparent": true,
             "solid": false,
             "hardness": 100.0,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/water_still.png",
             "color": [
                 0.15,
@@ -187,9 +218,12 @@
         {
             "id": 10,
             "name": "Cobblestone",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 2.0,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/cobblestone.png",
             "color": [
                 0.42,
@@ -205,9 +239,12 @@
         {
             "id": 11,
             "name": "Bedrock",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": -1.0,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/bedrock.png",
             "color": [
                 0.2,
@@ -223,9 +260,12 @@
         {
             "id": 12,
             "name": "Gravel",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 0.6,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/gravel.png",
             "color": [
                 0.55,
@@ -241,9 +281,12 @@
         {
             "id": 13,
             "name": "Iron_Ore",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/iron_ore.png",
             "color": [
                 0.55,
@@ -259,9 +302,12 @@
         {
             "id": 14,
             "name": "Coal_Ore",
+            "renderType": "cube",
             "transparent": false,
             "solid": true,
             "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
             "texture": "textures/block/coal_ore.png",
             "color": [
                 0.35,
@@ -273,6 +319,144 @@
                 0.35,
                 0.35
             ]
+        },
+        {
+            "id": 15,
+            "name": "Snow",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.2,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/snow.png"
+        },
+        {
+            "id": 16,
+            "name": "Spruce_Log",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 2.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/spruce_log.png",
+            "textureTop": "textures/block/spruce_log_top.png",
+            "textureBottom": "textures/block/spruce_log_top.png"
+        },
+        {
+            "id": 17,
+            "name": "Spruce_Leaves",
+            "renderType": "cube",
+            "transparent": true,
+            "solid": true,
+            "hardness": 0.2,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/spruce_leaves.png"
+        },
+        {
+            "id": 18,
+            "name": "Birch_Log",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 2.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/birch_log.png",
+            "textureTop": "textures/block/birch_log_top.png",
+            "textureBottom": "textures/block/birch_log_top.png"
+        },
+        {
+            "id": 19,
+            "name": "Birch_Leaves",
+            "renderType": "cube",
+            "transparent": true,
+            "solid": true,
+            "hardness": 0.2,
+            "tint": "foliage",
+            "waving": true,
+            "texture": "textures/block/birch_leaves.png"
+        },
+        {
+            "id": 20,
+            "name": "Cherry_Log",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 2.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/cherry_log.png",
+            "textureTop": "textures/block/cherry_log_top.png",
+            "textureBottom": "textures/block/cherry_log_top.png"
+        },
+        {
+            "id": 21,
+            "name": "Cherry_Leaves",
+            "renderType": "cube",
+            "transparent": true,
+            "solid": true,
+            "hardness": 0.2,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/cherry_leaves.png"
+        },
+        {
+            "id": 22,
+            "name": "Short_Grass",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "grass",
+            "waving": true,
+            "texture": "textures/block/short_grass.png"
+        },
+        {
+            "id": 23,
+            "name": "Dandelion",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/dandelion.png"
+        },
+        {
+            "id": 24,
+            "name": "Poppy",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/poppy.png"
+        },
+        {
+            "id": 25,
+            "name": "Cornflower",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/cornflower.png"
+        },
+        {
+            "id": 26,
+            "name": "Pink_Tulip",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/pink_tulip.png"
         }
     ]
 }

@@ -94,12 +94,14 @@ bool ChunkSerializer::load(Chunk &chunk, const std::string &worldDir)
 	file.read(reinterpret_cast<char *>(&cx), sizeof(cx));
 	file.read(reinterpret_cast<char *>(&cz), sizeof(cz));
 
-	if(magic != MAGIC || version != VERSION)
+	if(magic != MAGIC)
 		{
 			std::cerr << "[ChunkSerializer] Invalid file format: " << path
 					  << std::endl;
 			return false;
 		}
+	if(version != VERSION)
+		return false; // Ancienne version : le chunk sera régénéré
 
 	if(cx != pos.x || cz != pos.y)
 		{
@@ -109,27 +111,42 @@ bool ChunkSerializer::load(Chunk &chunk, const std::string &worldDir)
 		}
 
 	// ── RLE Decompression ───────────────────────────────────
+	// Décodage dans un tampon : un fichier tronqué ne doit pas laisser
+	// un chunk à moitié rempli.
+	std::vector<uint8_t> decoded(CHUNK_VOLUME);
 	int index = 0;
-	while(index < CHUNK_VOLUME && file.good())
+	while(index < CHUNK_VOLUME)
 		{
 			uint8_t blockType;
 			uint16_t count;
 			file.read(reinterpret_cast<char *>(&blockType),
 					  sizeof(blockType));
 			file.read(reinterpret_cast<char *>(&count), sizeof(count));
+			if(!file || count == 0
+			   || blockType >= static_cast<uint8_t>(BlockType::Count))
+				break;
 
 			for(uint16_t i = 0; i < count && index < CHUNK_VOLUME; ++i)
-				{
-					// Convert linear index back to x,y,z
-					int x = index % CHUNK_SIZE_X;
-					int y = (index / CHUNK_SIZE_X) % CHUNK_SIZE_Y;
-					int z = index / (CHUNK_SIZE_X * CHUNK_SIZE_Y);
-					chunk.setBlock(x, y, z,
-								   static_cast<BlockType>(blockType));
-					index++;
-				}
+				decoded[index++] = blockType;
 		}
 
-	chunk.clearDirty();
+	if(index != CHUNK_VOLUME)
+		{
+			std::cerr << "[ChunkSerializer] Corrupted chunk, regenerating: "
+					  << path << std::endl;
+			return false;
+		}
+
+	for(index = 0; index < CHUNK_VOLUME; ++index)
+		{
+			// Convert linear index back to x,y,z
+			int x = index % CHUNK_SIZE_X;
+			int y = (index / CHUNK_SIZE_X) % CHUNK_SIZE_Y;
+			int z = index / (CHUNK_SIZE_X * CHUNK_SIZE_Y);
+			chunk.setBlock(x, y, z, static_cast<BlockType>(decoded[index]));
+		}
+
+	chunk.updateTopY();
+	chunk.setModified(true); // déjà modifié par le joueur (sinon non sauvegardé)
 	return true;
 }

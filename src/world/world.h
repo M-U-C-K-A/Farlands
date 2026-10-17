@@ -1,62 +1,121 @@
 // -----------------------------------------------------------------------------
 // Fichier : world.h
-// Rôle : Gestion du monde (infini) composé de chunks chargés dynamiquement.
-// Utilise le système de biomes pour la génération du terrain.
+// Rôle : Monde infini composé de chunks chargés dynamiquement autour du joueur.
+// La génération et le maillage tournent sur un pool de threads ; le thread
+// principal publie les chunks prêts et transmet les meshes au renderer.
 // -----------------------------------------------------------------------------
 #pragma once
 
-#include "../core/types.h"
-#include "biome.h"
+#include "../core/job_system.h"
 #include "chunk.h"
 #include "chunk_mesh.h"
+#include "terrain_generator.h"
 
+#include <atomic>
+#include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 /// Hash pour glm::ivec2 (position chunk)
-struct IVec2Hash {
-  std::size_t operator()(const glm::ivec2 &v) const {
-    auto h1 = std::hash<int>{}(v.x);
-    auto h2 = std::hash<int>{}(v.y);
-    return h1 ^ (h2 << 16);
-  }
+struct IVec2Hash
+{
+	std::size_t operator()(const glm::ivec2 &v) const
+	{
+		uint64_t k = (static_cast<uint64_t>(static_cast<uint32_t>(v.x)) << 32)
+					 | static_cast<uint32_t>(v.y);
+		k ^= k >> 33;
+		k *= 0xff51afd7ed558ccdull;
+		k ^= k >> 33;
+		return static_cast<std::size_t>(k);
+	}
 };
 
-/// Gère un monde infini de chunks avec biomes et chargement dynamique.
-class World {
-public:
-  /// Configure le répertoire de sauvegarde des chunks
-  void setWorldDir(const std::string &dir);
+class World
+{
+  public:
+	explicit World(uint32_t seed = 42);
+	~World();
 
-  /// Met à jour les chunks autour du joueur. Retourne true si des chunks ont changé.
-  bool updateAroundPlayer(int playerChunkX, int playerChunkZ, int renderRadius);
+	/// Évènement pour le renderer : nouveau mesh, ou suppression si mesh == null
+	struct MeshEvent
+	{
+		glm::ivec2 pos;
+		std::shared_ptr<ChunkMeshData> mesh;
+	};
 
-  /// Récupère un chunk par sa position, ou nullptr
-  Chunk *getChunk(int cx, int cz);
-  const Chunk *getChunk(int cx, int cz) const;
+	/// Configure le répertoire de sauvegarde des chunks modifiés
+	void setWorldDir(const std::string &dir);
 
-  /// Retourne le type de bloc aux coordonnées monde absolues
-  BlockType getBlockAt(int wx, int wy, int wz) const;
+	/// Rayon de rendu en chunks
+	void setRenderRadius(int radius);
+	int getRenderRadius() const { return m_radius; }
 
-  /// Construit le mesh complet de tous les chunks chargés
-  void buildWorldMesh(std::vector<Vertex> &outVertices,
-                      std::vector<uint32_t> &outIndices);
+	/// À appeler à chaque frame (thread principal)
+	void update(const glm::vec3 &playerPos);
 
-  int getRadius() const { return m_radius; }
-  int getChunkCount() const { return static_cast<int>(m_chunks.size()); }
+	/// Récupère les évènements de mesh (au plus maxUploads nouveaux meshes)
+	std::vector<MeshEvent> takeMeshEvents(size_t maxUploads);
 
-  /// Accès au gestionnaire de biomes (pour ImGui display)
-  const BiomeManager &getBiomeManager() const { return m_biomeManager; }
+	/// Récupère un chunk chargé par sa position, ou nullptr
+	const Chunk *getChunk(int cx, int cz) const;
 
-private:
-  std::unordered_map<glm::ivec2, std::unique_ptr<Chunk>, IVec2Hash> m_chunks;
-  std::unordered_map<glm::ivec2, ChunkMesh, IVec2Hash> m_chunkMeshes;
-  int m_radius = 0;
-  std::string m_worldDir;
-  BiomeManager m_biomeManager{42}; // Seed fixe pour reproductibilité
+	/// Retourne le type de bloc aux coordonnées monde absolues
+	BlockType getBlockAt(int wx, int wy, int wz) const;
+	/// Le chunk contenant la colonne (wx, wz) est-il chargé ?
+	bool isColumnLoaded(int wx, int wz) const;
 
-  /// Génère le terrain d'un chunk en utilisant le système de biomes
-  void generateTerrain(Chunk &chunk);
+	int getChunkCount() const { return static_cast<int>(m_chunks.size()); }
+	int getMeshedCount() const { return m_meshedCount; }
+	size_t getPendingJobs() const { return m_jobs->pending(); }
+	unsigned getWorkerCount() const { return m_jobs->threadCount(); }
+
+	const TerrainGenerator &getGenerator() const { return m_generator; }
+
+	/// Sauvegarde les chunks modifiés (à la fermeture)
+	void saveAll();
+
+  private:
+	enum class MeshState : uint8_t
+	{
+		None,
+		Pending,
+		Done
+	};
+
+	TerrainGenerator m_generator;
+	std::string m_worldDir;
+	int m_radius = 20;
+	glm::ivec2 m_center{0};
+	bool m_centerValid = false;
+	int m_meshedCount = 0;
+
+	// ── État du thread principal ────────────────────────────────
+	std::unordered_map<glm::ivec2, std::shared_ptr<Chunk>, IVec2Hash> m_chunks;
+	std::unordered_set<glm::ivec2, IVec2Hash> m_genPending;
+	std::unordered_map<glm::ivec2, MeshState, IVec2Hash> m_meshState;
+	std::deque<MeshEvent> m_events;
+
+	// ── Résultats des threads de travail ────────────────────────
+	std::mutex m_resultMutex;
+	std::vector<std::shared_ptr<Chunk>> m_genResults;
+	std::vector<glm::ivec2> m_genCancelled;
+	std::vector<std::shared_ptr<ChunkMeshData>> m_meshResults;
+
+	// Centre/rayon courants, lus par les travaux pour s'annuler
+	std::atomic<int> m_atomicCX{0};
+	std::atomic<int> m_atomicCZ{0};
+	std::atomic<int> m_atomicRadius{20};
+
+	void scheduleAround();
+	void unloadFar();
+	void drainResults();
+	void tryScheduleMesh(const glm::ivec2 &pos);
+	bool inRadius(const glm::ivec2 &pos, float radius) const;
+
+	// Déclaré en dernier : détruit (threads joints) avant le reste
+	std::unique_ptr<JobSystem> m_jobs;
 };

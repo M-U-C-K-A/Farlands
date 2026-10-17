@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -47,6 +48,23 @@ class VkContext
 	querySwapChainSupport(VkPhysicalDevice device) const;
 	uint32_t findMemoryType(uint32_t typeFilter,
 							VkMemoryPropertyFlags properties) const;
+	/// Comme findMemoryType, sans exception (nullopt si introuvable)
+	std::optional<uint32_t>
+	tryFindMemoryType(uint32_t typeFilter,
+					  VkMemoryPropertyFlags properties) const;
+
+	/// Enregistre et exécute immédiatement des commandes (bloquant)
+	void immediateSubmit(const std::function<void(VkCommandBuffer)> &record);
+
+	/// Le format supporte-t-il ces fonctionnalités (tiling optimal) ?
+	bool formatSupports(VkFormat format, VkFormatFeatureFlags features) const;
+
+	bool hasAnisotropy() const { return m_anisotropy; }
+
+	const VkPhysicalDeviceProperties &getProperties() const
+	{
+		return m_properties;
+	}
 
   private:
 	GLFWwindow *m_window = nullptr;
@@ -59,6 +77,9 @@ class VkContext
 	VkDevice m_device = VK_NULL_HANDLE;
 	VkQueue m_graphicsQueue = VK_NULL_HANDLE;
 	VkQueue m_presentQueue = VK_NULL_HANDLE;
+	VkCommandPool m_transientPool = VK_NULL_HANDLE;
+	VkPhysicalDeviceProperties m_properties{};
+	bool m_anisotropy = false;
 
 	void createInstance();
 	void setupDebugMessenger();

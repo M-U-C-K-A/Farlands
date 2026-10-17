@@ -3,14 +3,17 @@
 #include "vk_context.h"
 #include <vector>
 
-/// Gère le Swapchain Vulkan : création, recreation, image views, framebuffers.
+/// Gère le Swapchain Vulkan : création, recréation, image views, framebuffers.
+/// La scène est rendue hors écran ; le swapchain ne reçoit que la passe
+/// finale (composition + interface), sans tampon de profondeur.
 class VkSwapchain
 {
   public:
-	void create(VkContext &ctx, GLFWwindow *window);
+	void create(VkContext &ctx, GLFWwindow *window, bool vsync);
 	void createFramebuffers(VkDevice device, VkRenderPass renderPass);
 	void cleanup(VkDevice device);
-	void recreate(VkContext &ctx, GLFWwindow *window, VkRenderPass renderPass);
+	void recreate(VkContext &ctx, GLFWwindow *window, VkRenderPass renderPass,
+				  bool vsync);
 
 	VkSwapchainKHR getSwapchain() const { return m_swapChain; }
 	VkFormat getImageFormat() const { return m_imageFormat; }
@@ -23,45 +26,28 @@ class VkSwapchain
 	{
 		return static_cast<uint32_t>(m_images.size());
 	}
-
-	// Depth resources
-	VkImageView getDepthImageView() const { return m_depthImageView; }
+	VkImage getImage(uint32_t index) const { return m_images[index]; }
+	bool supportsTransferSrc() const { return m_supportsTransferSrc; }
+	/// Le format est sRGB : la conversion gamma est faite par le matériel
+	bool isSrgb() const;
 
   private:
 	VkSwapchainKHR m_swapChain = VK_NULL_HANDLE;
 	std::vector<VkImage> m_images;
-	VkFormat m_imageFormat;
-	VkExtent2D m_extent;
+	VkFormat m_imageFormat = VK_FORMAT_UNDEFINED;
+	VkExtent2D m_extent{};
+	bool m_supportsTransferSrc = false;
 	std::vector<VkImageView> m_imageViews;
 	std::vector<VkFramebuffer> m_framebuffers;
 
-	// Depth
-	VkImage m_depthImage = VK_NULL_HANDLE;
-	VkDeviceMemory m_depthImageMemory = VK_NULL_HANDLE;
-	VkImageView m_depthImageView = VK_NULL_HANDLE;
-
-	void createSwapChain(VkContext &ctx, GLFWwindow *window);
+	void createSwapChain(VkContext &ctx, GLFWwindow *window, bool vsync);
 	void createImageViews(VkDevice device);
-	void createDepthResources(VkContext &ctx);
-	void createFramebuffersInternal(VkDevice device, VkRenderPass renderPass);
 
 	VkSurfaceFormatKHR
 	chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &formats);
 	VkPresentModeKHR
-	chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &modes);
+	chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &modes,
+						  bool vsync);
 	VkExtent2D
 	chooseSwapExtent(const VkSurfaceCapabilitiesKHR &caps, GLFWwindow *window);
-
-	VkImageView
-	createImageView(VkDevice device, VkImage image, VkFormat format,
-					VkImageAspectFlags aspectFlags);
-	void createImage(VkContext &ctx, uint32_t w, uint32_t h, VkFormat format,
-					 VkImageTiling tiling, VkImageUsageFlags usage,
-					 VkMemoryPropertyFlags props, VkImage &image,
-					 VkDeviceMemory &memory);
-	VkFormat findDepthFormat(VkPhysicalDevice physDevice);
-	VkFormat
-	findSupportedFormat(VkPhysicalDevice physDevice,
-						const std::vector<VkFormat> &candidates,
-						VkImageTiling tiling, VkFormatFeatureFlags features);
 };

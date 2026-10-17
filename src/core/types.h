@@ -1,7 +1,8 @@
 // -----------------------------------------------------------------------------
 // Fichier : types.h
-// Rôle : Définitions globales des types essentiels pour le moteur Vulkan.
-// Contient Vertex, UniformBufferObject, et leurs descriptions.
+// Rôle : Définitions globales des types partagés CPU / GPU.
+// Contient le Vertex compact des chunks, les uniformes par frame et les
+// push constants. Les layouts doivent correspondre à shaders/common.glsl.
 // -----------------------------------------------------------------------------
 #pragma once
 
@@ -9,16 +10,32 @@
 #include <vulkan/vulkan.h>
 
 #include <array>
+#include <cstdint>
 
-// ── Vertex ──────────────────────────────────────────────────────
+// ── Vertex compact (20 octets) ──────────────────────────────────
+// pos  : position locale au chunk (x, z dans [0, 16], y dans [0, 256])
+// data : bits [0..9]   couche de texture
+//        bits [10..12] normale (0 +Z, 1 -Z, 2 +Y, 3 -Y, 4 +X, 5 -X, 6 plante)
+//        bits [13..14] occlusion ambiante (0 = aucune, 3 = maximale)
+//        bit  15       u, bit 16 v (coin de texture)
+//        bits [17..24] type de bloc
+//        bits [25..26] ondulation (0 aucune, 1 feuillage, 2 haut de plante)
+// tint : couleur multiplicative RGBA8 encodée sur [0, 2] (0x80 = 1.0), pour
+//        pouvoir aussi éclaircir/saturer (teinte de biome)
 struct Vertex
 {
 	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec3 texCoord;
-	glm::vec3 normal;
-	float ao; // Ambient Occlusion factor [0..1], 1 = fully lit
-	float blockType; // ID du bloc (ex: 9 = Eau)
+	uint32_t data;
+	uint32_t tint;
+
+	static uint32_t pack(uint32_t layer, uint32_t normal, uint32_t ao,
+						 uint32_t u, uint32_t v, uint32_t blockType,
+						 uint32_t wave)
+	{
+		return (layer & 0x3FFu) | ((normal & 7u) << 10) | ((ao & 3u) << 13)
+			   | ((u & 1u) << 15) | ((v & 1u) << 16)
+			   | ((blockType & 0xFFu) << 17) | ((wave & 3u) << 25);
+	}
 
 	// Fournit à Vulkan la description de la structure globale du Vertex
 	static VkVertexInputBindingDescription getBindingDescription()
@@ -31,52 +48,52 @@ struct Vertex
 	}
 
 	// Fournit à Vulkan les détails de chaque attribut du Vertex
-	static std::array<VkVertexInputAttributeDescription, 6>
+	static std::array<VkVertexInputAttributeDescription, 3>
 	getAttributeDescriptions()
 	{
-		std::array<VkVertexInputAttributeDescription, 6> attrs{};
-		// position
-		attrs[0].binding = 0;
-		attrs[0].location = 0;
-		attrs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrs[0].offset = offsetof(Vertex, pos);
-		// color
-		attrs[1].binding = 0;
-		attrs[1].location = 1;
-		attrs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrs[1].offset = offsetof(Vertex, color);
-		// texCoord
-		attrs[2].binding = 0;
-		attrs[2].location = 2;
-		attrs[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrs[2].offset = offsetof(Vertex, texCoord);
-		// normal
-		attrs[3].binding = 0;
-		attrs[3].location = 3;
-		attrs[3].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrs[3].offset = offsetof(Vertex, normal);
-		// ao
-		attrs[4].binding = 0;
-		attrs[4].location = 4;
-		attrs[4].format = VK_FORMAT_R32_SFLOAT;
-		attrs[4].offset = offsetof(Vertex, ao);
-		// blockType
-		attrs[5].binding = 0;
-		attrs[5].location = 5;
-		attrs[5].format = VK_FORMAT_R32_SFLOAT;
-		attrs[5].offset = offsetof(Vertex, blockType);
+		std::array<VkVertexInputAttributeDescription, 3> attrs{};
+		attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)};
+		attrs[1] = {1, 0, VK_FORMAT_R32_UINT, offsetof(Vertex, data)};
+		attrs[2] = {2, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(Vertex, tint)};
 		return attrs;
 	}
 };
+static_assert(sizeof(Vertex) == 20, "Vertex must stay tightly packed");
 
-// ── Uniform Buffer Object ───────────────────────────────────────
-struct UniformBufferObject
+/// Teinte neutre (multiplicateur 1.0) dans l'encodage [0, 2]
+constexpr uint32_t TINT_NEUTRAL = 0xFF808080u;
+
+// ── Uniformes par frame (std140, voir shaders/common.glsl) ──────
+struct FrameUniforms
 {
-	alignas(16) glm::mat4 model;
-	alignas(16) glm::mat4 view;
-	alignas(16) glm::mat4 proj;
-	alignas(16) glm::vec3 viewPos; // Position caméra pour le brouillard
-	alignas(4) float time;
-	alignas(16) glm::mat4 invView;
-	alignas(16) glm::mat4 invProj;
+	glm::mat4 view;
+	glm::mat4 proj;
+	glm::mat4 viewProj;
+	glm::mat4 invView;
+	glm::mat4 invProj;
+	glm::mat4 invViewProj;
+	glm::mat4 lightViewProj; // matrice de la shadow map (soleil)
+
+	glm::vec4 cameraPos;   // xyz : position caméra, w : temps (s)
+	glm::vec4 sunDir;      // xyz : direction VERS le soleil, w : intensité du disque
+	glm::vec4 sunColor;    // rgb : éclairement direct du soleil (transmis)
+	glm::vec4 fogParams;   // x : densité, y : décroissance en altitude,
+						   // z : distance de rendu, w : 1 si sous l'eau
+	glm::vec4 waterFog;    // rgb : couleur de l'eau, a : densité sous l'eau
+	glm::vec4 screen;      // xy : taille du rendu, zw : 1 / taille
+	glm::vec4 post;        // x : exposition, y : bloom, z : god rays,
+						   // w : saturation
+	glm::vec4 clouds;      // x : couverture, y : densité, z : vitesse,
+						   // w : activé
+	glm::vec4 shadow;      // x : 1/taille shadow map, y : distance,
+						   // z : biais (normal offset), w : activé
+	glm::vec4 misc;        // x : sortie sRGB matérielle (1) ou gamma manuel,
+						   // y : near, z : far, w : index de frame
+};
+
+// ── Push constants (32 octets, communs à tous les pipelines) ────
+struct PushConstants
+{
+	glm::vec4 a; // terrain : origine du chunk ; post : paramètres
+	glm::vec4 b;
 };

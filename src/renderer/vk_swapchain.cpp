@@ -1,37 +1,49 @@
 #include "vk_swapchain.h"
 
 #include <algorithm>
-#include <array>
 #include <stdexcept>
 #include "core/logger.h"
 
 // ── Public ──────────────────────────────────────────────────────
-void VkSwapchain::create(VkContext &ctx, GLFWwindow *window)
+void VkSwapchain::create(VkContext &ctx, GLFWwindow *window, bool vsync)
 {
-	createSwapChain(ctx, window);
+	createSwapChain(ctx, window, vsync);
 	createImageViews(ctx.getDevice());
-	createDepthResources(ctx);
 }
 
 void VkSwapchain::createFramebuffers(VkDevice device, VkRenderPass renderPass)
 {
-	createFramebuffersInternal(device, renderPass);
+	m_framebuffers.resize(m_imageViews.size());
+	for(size_t i = 0; i < m_imageViews.size(); i++)
+		{
+			VkFramebufferCreateInfo ci{};
+			ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			ci.renderPass = renderPass;
+			ci.attachmentCount = 1;
+			ci.pAttachments = &m_imageViews[i];
+			ci.width = m_extent.width;
+			ci.height = m_extent.height;
+			ci.layers = 1;
+			if(vkCreateFramebuffer(device, &ci, nullptr, &m_framebuffers[i])
+			   != VK_SUCCESS)
+				throw std::runtime_error("Failed to create framebuffer");
+		}
 }
 
 void VkSwapchain::cleanup(VkDevice device)
 {
-	vkDestroyImageView(device, m_depthImageView, nullptr);
-	vkDestroyImage(device, m_depthImage, nullptr);
-	vkFreeMemory(device, m_depthImageMemory, nullptr);
 	for(auto fb : m_framebuffers)
 		vkDestroyFramebuffer(device, fb, nullptr);
+	m_framebuffers.clear();
 	for(auto iv : m_imageViews)
 		vkDestroyImageView(device, iv, nullptr);
+	m_imageViews.clear();
 	vkDestroySwapchainKHR(device, m_swapChain, nullptr);
+	m_swapChain = VK_NULL_HANDLE;
 }
 
 void VkSwapchain::recreate(VkContext &ctx, GLFWwindow *window,
-						   VkRenderPass renderPass)
+						   VkRenderPass renderPass, bool vsync)
 {
 	int w = 0, h = 0;
 	glfwGetFramebufferSize(window, &w, &h);
@@ -42,16 +54,23 @@ void VkSwapchain::recreate(VkContext &ctx, GLFWwindow *window,
 		}
 	vkDeviceWaitIdle(ctx.getDevice());
 	cleanup(ctx.getDevice());
-	create(ctx, window);
+	create(ctx, window, vsync);
 	createFramebuffers(ctx.getDevice(), renderPass);
 }
 
+bool VkSwapchain::isSrgb() const
+{
+	return m_imageFormat == VK_FORMAT_B8G8R8A8_SRGB
+		   || m_imageFormat == VK_FORMAT_R8G8B8A8_SRGB;
+}
+
 // ── Swap Chain Creation ─────────────────────────────────────────
-void VkSwapchain::createSwapChain(VkContext &ctx, GLFWwindow *window)
+void VkSwapchain::createSwapChain(VkContext &ctx, GLFWwindow *window,
+								  bool vsync)
 {
 	auto support = ctx.querySwapChainSupport(ctx.getPhysicalDevice());
 	auto surfaceFormat = chooseSwapSurfaceFormat(support.formats);
-	auto presentMode = chooseSwapPresentMode(support.presentModes);
+	auto presentMode = chooseSwapPresentMode(support.presentModes, vsync);
 	auto extent = chooseSwapExtent(support.capabilities, window);
 	uint32_t imageCount = support.capabilities.minImageCount + 1;
 	if(support.capabilities.maxImageCount > 0
@@ -67,6 +86,12 @@ void VkSwapchain::createSwapChain(VkContext &ctx, GLFWwindow *window)
 	ci.imageExtent = extent;
 	ci.imageArrayLayers = 1;
 	ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	// Permet la copie des images (captures d'écran F2) si supporté
+	m_supportsTransferSrc = (support.capabilities.supportedUsageFlags
+							 & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+							!= 0;
+	if(m_supportsTransferSrc)
+		ci.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 	auto indices = ctx.findQueueFamilies(ctx.getPhysicalDevice());
 	uint32_t queueFamilyIndices[]
@@ -98,132 +123,28 @@ void VkSwapchain::createSwapChain(VkContext &ctx, GLFWwindow *window)
 	m_imageFormat = surfaceFormat.format;
 	m_extent = extent;
 
-	LOG_INFO("Swapchain created: " << m_extent.width << "x" << m_extent.height 
-			 << " with " << m_images.size() << " images.");
+	const char *modeName = presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR ? "immediate"
+						   : presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox"
+																		: "fifo";
+	LOG_INFO("Swapchain created: " << m_extent.width << "x" << m_extent.height << " with "
+								   << m_images.size() << " images, present mode " << modeName);
 }
 
 // ── Image Views ─────────────────────────────────────────────────
-VkImageView
-VkSwapchain::createImageView(VkDevice device, VkImage image, VkFormat format,
-							 VkImageAspectFlags aspectFlags)
-{
-	VkImageViewCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	ci.image = image;
-	ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	ci.format = format;
-	ci.subresourceRange.aspectMask = aspectFlags;
-	ci.subresourceRange.baseMipLevel = 0;
-	ci.subresourceRange.levelCount = 1;
-	ci.subresourceRange.baseArrayLayer = 0;
-	ci.subresourceRange.layerCount = 1;
-	VkImageView view;
-	if(vkCreateImageView(device, &ci, nullptr, &view) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create image view");
-	return view;
-}
-
 void VkSwapchain::createImageViews(VkDevice device)
 {
 	m_imageViews.resize(m_images.size());
 	for(size_t i = 0; i < m_images.size(); i++)
-		m_imageViews[i] = createImageView(device, m_images[i], m_imageFormat,
-										  VK_IMAGE_ASPECT_COLOR_BIT);
-}
-
-// ── Depth Resources ─────────────────────────────────────────────
-VkFormat
-VkSwapchain::findSupportedFormat(VkPhysicalDevice physDevice,
-								 const std::vector<VkFormat> &candidates,
-								 VkImageTiling tiling,
-								 VkFormatFeatureFlags features)
-{
-	for(auto f : candidates)
 		{
-			VkFormatProperties props;
-			vkGetPhysicalDeviceFormatProperties(physDevice, f, &props);
-			if(tiling == VK_IMAGE_TILING_LINEAR
-			   && (props.linearTilingFeatures & features) == features)
-				return f;
-			if(tiling == VK_IMAGE_TILING_OPTIMAL
-			   && (props.optimalTilingFeatures & features) == features)
-				return f;
-		}
-	throw std::runtime_error("Failed to find supported format");
-}
-
-VkFormat VkSwapchain::findDepthFormat(VkPhysicalDevice physDevice)
-{
-	return findSupportedFormat(
-	  physDevice,
-	  {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
-	   VK_FORMAT_D24_UNORM_S8_UINT},
-	  VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-}
-
-void VkSwapchain::createImage(VkContext &ctx, uint32_t w, uint32_t h,
-							  VkFormat format, VkImageTiling tiling,
-							  VkImageUsageFlags usage,
-							  VkMemoryPropertyFlags props, VkImage &image,
-							  VkDeviceMemory &memory)
-{
-	VkImageCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	ci.imageType = VK_IMAGE_TYPE_2D;
-	ci.extent = {w, h, 1};
-	ci.mipLevels = 1;
-	ci.arrayLayers = 1;
-	ci.format = format;
-	ci.tiling = tiling;
-	ci.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	ci.usage = usage;
-	ci.samples = VK_SAMPLE_COUNT_1_BIT;
-	ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	if(vkCreateImage(ctx.getDevice(), &ci, nullptr, &image) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create image");
-
-	VkMemoryRequirements memReq;
-	vkGetImageMemoryRequirements(ctx.getDevice(), image, &memReq);
-	VkMemoryAllocateInfo ai{};
-	ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	ai.allocationSize = memReq.size;
-	ai.memoryTypeIndex = ctx.findMemoryType(memReq.memoryTypeBits, props);
-	if(vkAllocateMemory(ctx.getDevice(), &ai, nullptr, &memory) != VK_SUCCESS)
-		throw std::runtime_error("Failed to allocate image memory");
-	vkBindImageMemory(ctx.getDevice(), image, memory, 0);
-}
-
-void VkSwapchain::createDepthResources(VkContext &ctx)
-{
-	VkFormat depthFormat = findDepthFormat(ctx.getPhysicalDevice());
-	createImage(
-	  ctx, m_extent.width, m_extent.height, depthFormat,
-	  VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-	  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_depthImage, m_depthImageMemory);
-	m_depthImageView = createImageView(ctx.getDevice(), m_depthImage,
-									   depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-}
-
-// ── Framebuffers ────────────────────────────────────────────────
-void VkSwapchain::createFramebuffersInternal(VkDevice device,
-											 VkRenderPass renderPass)
-{
-	m_framebuffers.resize(m_imageViews.size());
-	for(size_t i = 0; i < m_imageViews.size(); i++)
-		{
-			std::array<VkImageView, 2> attachments
-			  = {m_imageViews[i], m_depthImageView};
-			VkFramebufferCreateInfo ci{};
-			ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			ci.renderPass = renderPass;
-			ci.attachmentCount = static_cast<uint32_t>(attachments.size());
-			ci.pAttachments = attachments.data();
-			ci.width = m_extent.width;
-			ci.height = m_extent.height;
-			ci.layers = 1;
-			if(vkCreateFramebuffer(device, &ci, nullptr, &m_framebuffers[i])
+			VkImageViewCreateInfo ci{};
+			ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			ci.image = m_images[i];
+			ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			ci.format = m_imageFormat;
+			ci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+			if(vkCreateImageView(device, &ci, nullptr, &m_imageViews[i])
 			   != VK_SUCCESS)
-				throw std::runtime_error("Failed to create framebuffer");
+				throw std::runtime_error("Failed to create image view");
 		}
 }
 
@@ -239,19 +160,20 @@ VkSurfaceFormatKHR VkSwapchain::chooseSwapSurfaceFormat(
 }
 
 VkPresentModeKHR
-VkSwapchain::chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &modes)
+VkSwapchain::chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &modes,
+								   bool vsync)
 {
-	// Priority 1: IMMEDIATE (Uncapped FPS)
+	if(vsync)
+		return VK_PRESENT_MODE_FIFO_KHR; // toujours disponible
+
+	// Sans vsync : IMMEDIATE (FPS non plafonnés) sinon MAILBOX
 	for(auto m : modes)
 		if(m == VK_PRESENT_MODE_IMMEDIATE_KHR)
 			return m;
-
-	// Priority 2: MAILBOX (Triple buffering, uncapped internal but presenting at screen rate)
 	for(auto m : modes)
 		if(m == VK_PRESENT_MODE_MAILBOX_KHR)
 			return m;
-
-	return VK_PRESENT_MODE_FIFO_KHR; // Fallback: VSYNC
+	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
 VkExtent2D VkSwapchain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &caps,

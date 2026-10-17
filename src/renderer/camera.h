@@ -1,35 +1,46 @@
 // -----------------------------------------------------------------------------
 // Fichier : camera.h
-// Rôle : Entité Caméra pour la scène 3D.
-// Gère la configuration des matrices de vue (LookAt) et de projection
-// perspective.
+// Rôle : Caméra de la scène 3D.
+// Rendu relatif à la caméra : la matrice de vue ne contient que la rotation,
+// les positions sont envoyées au GPU par rapport à la caméra (précision).
+// Projection "reverse-Z" (près = 1, loin = 0) pour une profondeur précise
+// jusqu'à l'horizon.
 // -----------------------------------------------------------------------------
 #pragma once
 
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+
+#include <array>
 
 class Camera
 {
   public:
-	// Constructeur : initialise la caméra avec des paramètres par défaut
 	Camera();
 
 	// Définit la position spatiale (XYZ) de la caméra
-	void setPosition(const glm::vec3 &pos);
-	// Définit le point vers lequel la caméra regarde
-	void setTarget(const glm::vec3 &target);
+	void setPosition(const glm::vec3 &pos) { m_position = pos; }
+	// Définit la direction du regard (normalisée)
+	void setDirection(const glm::vec3 &front);
 	// Met à jour le ratio d'aspect selon les dimensions de la fenêtre
-	void setAspectRatio(float aspect);
+	void setAspectRatio(float aspect) { m_aspectRatio = aspect; }
+	void setFov(float degrees) { m_fov = degrees; }
 
-	// Calcule et retourne la matrice de Vue (View matrix) pour Vulkan
+	const glm::vec3 &getPosition() const { return m_position; }
+	const glm::vec3 &getFront() const { return m_front; }
+	float getNear() const { return m_nearPlane; }
+	float getFar() const { return m_farPlane; }
+
+	/// Vue sans translation (positions relatives à la caméra)
 	glm::mat4 getViewMatrix() const;
-	// Calcule et retourne la matrice de Projection perspective pour Vulkan
+	/// Projection perspective reverse-Z, Y inversé pour Vulkan
 	glm::mat4 getProjectionMatrix() const;
+
+	/// Plans du frustum (espace relatif à la caméra) : ax + by + cz + d >= 0
+	std::array<glm::vec4, 4> getFrustumPlanes() const;
 
   private:
 	glm::vec3 m_position;
-	glm::vec3 m_target;
+	glm::vec3 m_front;
 	glm::vec3 m_up;
 	float m_fov;
 	float m_aspectRatio;
