@@ -18,7 +18,7 @@ void main()
     // Sous l'eau : pas de ciel visible, seulement la couleur de l'eau
     if (u.fogParams.w > 0.5)
     {
-        outColor = vec4(u.waterFog.rgb * u.sunColor.rgb * 0.05, 1.0);
+        outColor = vec4(u.waterFog.rgb * u.sunColor.rgb * 0.14, 1.0);
         outDepth = SKY_DEPTH;
         return;
     }

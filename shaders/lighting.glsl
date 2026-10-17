@@ -9,6 +9,21 @@
 
 layout(set = 0, binding = B_SHADOW_MAP) uniform sampler2DShadow shadowMap;
 
+// Coefficient d'absorption de l'eau par bloc (rouge absorbé en premier)
+const vec3 WATER_ABSORPTION = vec3(0.42, 0.11, 0.075);
+
+#ifdef USE_CLOUDS
+// Caustiques : réseau lumineux animé projeté par les vagues sur le fond
+float caustics(vec3 world)
+{
+    float t = u.cameraPos.w;
+    vec2 p = world.xz + world.y * 0.15;
+    float a = texture(cloudNoise, vec3(p * 0.045 + vec2(t * 0.020, t * 0.013), 0.31)).g;
+    float b = texture(cloudNoise, vec3(p * 0.061 - vec2(t * 0.017, -t * 0.024), 0.73)).g;
+    return pow(a * b, 3.0) * 6.0;
+}
+#endif
+
 const vec2 POISSON[12] = vec2[](
     vec2(-0.326, -0.406), vec2(-0.840, -0.074), vec2(-0.696, 0.457),
     vec2(-0.203, 0.621), vec2(0.962, -0.195), vec2(0.473, -0.480),
@@ -45,11 +60,13 @@ vec3 applyFog(vec3 color, vec3 rel, float viewDist)
 {
     vec3 V = rel / max(viewDist, 1e-3);
 
-    // Sous l'eau : absorption rapide vers la couleur de l'eau
+    // Sous l'eau : absorption (le rouge disparaît en premier) puis
+    // diffusion vers la couleur de l'eau
     if (u.fogParams.w > 0.5)
     {
+        color *= exp(-WATER_ABSORPTION * viewDist);
         float f = 1.0 - exp(-viewDist * u.waterFog.a);
-        return mix(color, u.waterFog.rgb * u.sunColor.rgb * 0.05, f);
+        return mix(color, u.waterFog.rgb * u.sunColor.rgb * 0.14, f);
     }
 
     // Brume exponentielle en hauteur (intégrale analytique le long du rayon)

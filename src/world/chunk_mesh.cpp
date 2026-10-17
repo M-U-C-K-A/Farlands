@@ -174,16 +174,13 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 									uint32_t layer = static_cast<uint32_t>(faceLayer(bd, f));
 									if(type == BlockType::Grass && f != 2)
 										{
-											faceTint = TINT_NEUTRAL;
-											// "Better Grass" : flanc d'une marche qui descend vers
-											// une autre herbe -> texture du dessus (pentes vertes)
-											if(f != 3
-											   && n.get(x + fd.normal.x, y - 1, z + fd.normal.z)
-													== BlockType::Grass)
-												{
-													layer = static_cast<uint32_t>(bd.texLayerTop);
-													faceTint = tint;
-												}
+											// "Better Grass" : les flancs d'herbe reprennent la
+											// texture du dessus (pentes vertes, pas de rayures
+											// de terre à chaque marche) ; dessous : terre
+											if(f != 3)
+												layer = static_cast<uint32_t>(bd.texLayerTop);
+											else
+												faceTint = TINT_NEUTRAL;
 										}
 									Vertex v[4];
 									uint32_t ao[4] = {0, 0, 0, 0};

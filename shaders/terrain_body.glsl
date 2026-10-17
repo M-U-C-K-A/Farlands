@@ -79,6 +79,16 @@ void main()
     ao *= ao;
     vec3 ambient = skyAmbient(plant ? vec3(0, 1, 0) : N) * ao;
 
+    // Fond immergé : la lumière traverse l'eau avant d'atteindre le sol
+    // (atténuation colorée selon la profondeur) + caustiques
+    float depthBelow = SEA_LEVEL - world.y;
+    if (depthBelow > 0.0)
+    {
+        vec3 sunPath = exp(-WATER_ABSORPTION * depthBelow / max(L.y, 0.2));
+        sun *= sunPath * (0.6 + caustics(world));
+        ambient *= exp(-WATER_ABSORPTION * depthBelow * 0.7);
+    }
+
     vec3 color = albedo * (sun / PI + ambient);
 
     // Légère brillance de la neige

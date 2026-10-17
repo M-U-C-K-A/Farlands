@@ -113,7 +113,7 @@ void MainMenu::drawOptions(RenderSettings &s)
 
 	ImGui::PushItemWidth(200.0f);
 	ImGui::SeparatorText("World");
-	ImGui::SliderInt("Render distance", &s.renderDistance, 4, 32, "%d chunks");
+	ImGui::SliderInt("Render distance", &s.renderDistance, 4, 128, "%d chunks");
 	ImGui::SliderFloat("Field of view", &s.fov, 50.0f, 110.0f, "%.0f deg");
 
 	ImGui::SeparatorText("Sun & sky");

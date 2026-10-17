@@ -25,7 +25,7 @@ struct RenderSettings
 
 	// Atmosphère
 	bool clouds = true;
-	float cloudCoverage = 0.48f;
+	float cloudCoverage = 0.58f;
 	float fogDensity = 1.0f; // multiplicateur de la brume atmosphérique
 
 	// Eau

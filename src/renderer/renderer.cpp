@@ -868,7 +868,7 @@ void Renderer::fillUniforms(FrameUniforms &u, const FrameParams &params,
 	u.fogParams = glm::vec4(0.0011f * settings.fogDensity, 0.012f,
 							static_cast<float>(settings.renderDistance * 16),
 							params.underwater ? 1.0f : 0.0f);
-	u.waterFog = glm::vec4(0.015f, 0.075f, 0.10f, 0.085f);
+	u.waterFog = glm::vec4(0.02f, 0.10f, 0.12f, 0.06f);
 	u.screen = glm::vec4(m_renderExtent.width, m_renderExtent.height,
 						 1.0f / m_renderExtent.width, 1.0f / m_renderExtent.height);
 	u.post = glm::vec4(settings.exposure, settings.bloom ? settings.bloomStrength : 0.0f,

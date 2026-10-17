@@ -136,7 +136,7 @@ int TerrainGenerator::getHeightAt(int wx, int wz) const
 
 	// Lacs : cuvettes au fond des vallées (moins marqués en montagne)
 	float l = m_lakeNoise.octaveNoise(x * 0.0050f, z * 0.0050f, 3, 2.0f, 0.5f);
-	float lake = smoothstep(0.18f, 0.34f, l) * (1.0f - m * 0.9f);
+	float lake = smoothstep(0.14f, 0.38f, l) * (1.0f - m * 0.9f);
 	if(lake > 0.0f)
 		{
 			float bottom = SEA_LEVEL - 3.0f - 7.0f * smoothstep(0.3f, 0.5f, l);
@@ -304,6 +304,9 @@ void TerrainGenerator::generate(Chunk &chunk) const
 							top = BlockType::Snow;
 						}
 
+					// Pentes moyennes : deux couches d'herbe (flancs verts)
+					int grassLayers = (top == BlockType::Grass && slope >= 2) ? 2 : 1;
+
 					// ── Remplissage de la colonne ─────────────
 					for(int y = 0; y < h; ++y)
 						{
@@ -311,7 +314,7 @@ void TerrainGenerator::generate(Chunk &chunk) const
 							if(y == 0
 							   || (y <= 2 && (hash(wx * 7 + y, wz, 3) & 1u)))
 								b = BlockType::Bedrock;
-							else if(y == h - 1)
+							else if(y >= h - grassLayers)
 								b = top;
 							else if(y >= h - depth)
 								b = under;

@@ -100,7 +100,7 @@ void main()
     {
         vec3 Nd = -N;
         vec3 Rt = refract(-V, Nd, 1.33);
-        vec3 deep = u.waterFog.rgb * u.sunColor.rgb * 0.05;
+        vec3 deep = u.waterFog.rgb * u.sunColor.rgb * 0.14;
         vec3 color = (dot(Rt, Rt) > 0.0) ? envRadiance(Rt) * 0.8 : deep;
         color = mix(color, deep, 1.0 - exp(-viewDist * u.waterFog.a));
         outColor = vec4(color, 1.0);
@@ -118,8 +118,7 @@ void main()
     float pathLen = min(max(refrD - vViewDepth, 0.0), 80.0);
 
     // Absorption (rouge absorbé en premier) et diffusion turquoise
-    vec3 sigmaA = vec3(0.42, 0.11, 0.075);
-    vec3 trans = exp(-sigmaA * pathLen);
+    vec3 trans = exp(-WATER_ABSORPTION * pathLen);
     float shadow = sunShadow(vRel, vec3(0, 1, 0)) * cloudShadow(world);
     vec3 scatterColor = vec3(0.03, 0.16, 0.17);
     vec3 inscatter = scatterColor * (u.sunColor.rgb * (0.04 + 0.06 * shadow) * saturate(L.y)

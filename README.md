@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <b>A Minecraft-style voxel engine written from scratch in C++20 and Vulkan.</b><br>
-  Infinite procedural terrain · 8 biomes · chunk streaming with on-disk persistence · per-vertex ambient occlusion · F3-style debug overlay
+  <b>A Minecraft-style voxel engine written from scratch in C++20 and Vulkan, with a physically based HDR renderer.</b><br>
+  Sun shadows · atmospheric sky · volumetric clouds · reflective water · bloom & god rays · snowy mountains, lakes and cherry groves · multithreaded infinite world
 </p>
 
 <p align="center">
@@ -35,29 +35,33 @@
 ## Screenshots
 
 <p align="center">
-  <img src="docs/assets/screenshots/lake.jpg" alt="A lake bordered by a sand beach and forest, fading into the distance fog, with the F3 debug overlay and the biome panel" width="100%">
+  <img src="docs/assets/screenshots/lake.jpg" alt="A turquoise lake reflecting a green hill and cherry trees, with a snowy peak and cumulus clouds in the background" width="100%">
 </p>
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/assets/screenshots/terraces.jpg" alt="Grass terraces stepping up a forest hill right at spawn" width="100%"></td>
-    <td width="50%"><img src="docs/assets/screenshots/hills.jpg" alt="Rolling grass hills with the targeted-block readout in the debug overlay" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/cherry.jpg" alt="A cherry grove in full bloom with soft shadows under the canopy" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/mountains.jpg" alt="A snowy rocky peak above spruce forests and grassy slopes, under volumetric clouds" width="100%"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Spawn</b> — forest terraces, textures from the 2D texture array</sub></td>
-    <td align="center"><sub><b>Hills</b> — per-vertex AO darkens every step and corner</sub></td>
+    <td align="center"><sub><b>Cherry grove</b> — alpha-tested foliage, waving leaves, PCF soft shadows</sub></td>
+    <td align="center"><sub><b>Mountains</b> — ridged multifractal peaks, snow line, aerial perspective</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/assets/screenshots/underwater.jpg" alt="Underwater view: blue fog, the water surface seen from below and the sandy seabed" width="100%"></td>
-    <td width="50%"><img src="docs/assets/screenshots/menu.jpg" alt="Main menu with the Farlands logo, a scrolling panorama and the bouncing 'Now with Vulkan!' splash" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/sunset.jpg" alt="Sunset over the lake: warm sky, sun glint on the water, bloom and god rays" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/underwater.jpg" alt="Underwater view: blue-green absorption, sandy lake bed and Snell's window on the surface" width="100%"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Underwater</b> — short-range water fog, surface rendered from below</sub></td>
-    <td align="center"><sub><b>Main menu</b> — Dear ImGui over a scrolling panorama</sub></td>
+    <td align="center"><sub><b>Sunset</b> — sun color from atmospheric transmittance, glint, bloom</sub></td>
+    <td align="center"><sub><b>Underwater</b> — Beer–Lambert absorption, Snell's window, caustics</sub></td>
   </tr>
 </table>
 
-<p align="center"><sub>Real frames from <code>build/farlands</code> (Release) on an Apple M4 through MoltenVK, 1280×720, no post-processing — 160–200 FPS with the overlay on.</sub></p>
+<p align="center">
+  <img src="docs/assets/screenshots/menu.jpg" alt="Main menu drawn over the live world, slowly panning across the spawn vista" width="80%">
+</p>
+
+<p align="center"><sub>Real frames from <code>build/farlands</code> (Release) on an Apple M4 through MoltenVK, 1280×720, render distance 20 chunks — about 90–140 FPS with every effect on.</sub></p>
 
 ---
 
@@ -68,23 +72,26 @@
     <td valign="top" width="50%">
 
 **🎨 Rendering**
-- Hand-written **Vulkan** renderer: instance, device, swapchain (3 images), **2 frames in flight**, MoltenVK portability on macOS
-- **Sky pass** — one fullscreen triangle rebuilding view rays from the inverse matrices, with a sun disk and halo
-- **Terrain pass** — every loaded chunk in a single `vkCmdDrawIndexed`
-- Block textures in one **2D texture array** (18 layers, 64×64, 7 mip levels)
-- Directional sun + ambient, **baked per-vertex AO**, distance fog tied to the render distance, **underwater fog**
-- **F2 screenshots** straight from the swapchain to PNG
+- Hand-written **Vulkan** renderer, HDR (RGBA16F) pass chain, reverse-Z, camera-relative coordinates
+- **Atmosphere**: Rayleigh + Mie single scattering (+ multiple-scattering term) baked into a sky LUT every frame
+- **Volumetric clouds**: ray-marched cumulus layer (tileable Perlin–Worley 3D noise), half resolution, cloud shadows on the ground
+- **Sun shadows**: 4096² shadow map, texel-snapped and cached between frames, PCF with a rotated Poisson disk, alpha-tested foliage
+- **Water**: procedural waves, screen-space reflections with an environment fallback, refraction, Beer–Lambert absorption, sun glint, caustics, view from below
+- **Terrain shading**: normal maps derived from the textures, sky ambient light, per-vertex AO, foliage translucency, waving leaves and grass, height fog / aerial perspective
+- **Post**: bloom mip chain, god rays, ACES tonemapping, vignette, dithering
+- Per-chunk GPU buffers, frustum culling, opaque / cutout / water passes, GPU timers in the F3 overlay
 
 </td>
     <td valign="top" width="50%">
 
 **🌍 World**
-- **Infinite** X/Z world of 16 × 256 × 16 chunks
-- Streaming: load radius 5 (**121 chunks**), unload beyond 7 (hysteresis)
-- In-house **Perlin fBm** — 5 noise fields, fixed seed 42
-- **8 biomes**: Ocean, Beach, Plains, Forest, Desert, Mountains, Snowy Tundra, Swamp
-- Water up to sea level 30, strata (surface → sub-surface → stone → bedrock), biome-tinted grass & leaves
-- **RLE chunk files** in `~/.farlands/world`, versioned and self-healing
+- **Infinite** X/Z world of 16 × 256 × 16 chunks, render distance up to 32 chunks
+- **Multithreaded** streaming: a job system generates and meshes chunks in the background, nearest first
+- Terrain from Perlin fBm: continents, lakes, **ridged multifractal mountains** with domain warping, snow line and rocky cliffs
+- **10 biomes**: Ocean, Beach, Plains, Forest, Desert, Mountains, Taiga, Snowy Taiga, Cherry Grove, Snowy Peaks
+- **Trees** (oak, birch, spruce, cherry), tall grass and flowers, ores — deterministic across chunk borders
+- **27 data-driven blocks** with biome tints; procedural pixel-art textures for the new ones
+- **Scenic spawn**: the game searches for a spot with a lake in front and peaks in view
 
 </td>
   </tr>
@@ -93,18 +100,17 @@
 
 **🧍 Player**
 - First-person controller with frame-rate independent movement
-- Gravity, jumping, **swimming** (reduced gravity and speed in water)
+- Gravity, jumping, **swimming**, terminal velocity with sub-stepping
 - **Per-axis AABB collisions** (0.6 × 1.8 hitbox)
-- Spawns on the terrain surface
 
 </td>
     <td valign="top">
 
 **🛠️ Tooling**
-- **F3-style overlay** (Dear ImGui): FPS, XYZ, chunk, facing, velocity, targeted block, biome / temperature / humidity
-- Data-driven blocks: **`assets/data/blocks.json`**
-- Coloured, timestamped logger (`INFO` … `FATAL`); `DEBUG` / `TRACE` compiled out in Release
-- CMake compiles GLSL → SPIR-V; Debug builds enable the **Vulkan validation layers**
+- **Options** window: render distance, FOV, sun position, clouds, shadows, SSR, bloom, exposure, render scale, VSync
+- **F3 overlay**: FPS, GPU time per pass, chunks, biome, climate, targeted block
+- **F2 screenshots**, coloured logger, Vulkan validation layers in Debug
+- `terrain_preview` tool: renders a top-down map of the generator
 
 </td>
   </tr>
@@ -147,9 +153,7 @@ cmake --build build -j
 ./build/farlands
 ```
 
-<p align="center">
-  <img src="docs/assets/terminal.svg" alt="Terminal replay of a real start-up: GLFW window, block database, Vulkan on an Apple M4, 121 chunks meshed in 38 ms" width="100%">
-</p>
+The main menu is drawn over the live world while it streams in the background; click **Singleplayer** to play from the spawn vista.
 
 ### Controls
 
@@ -158,11 +162,14 @@ cmake --build build -j
 | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> | Move |
 | <kbd>Space</kbd> | Jump · swim up |
 | Mouse | Look around |
+| <kbd>Esc</kbd> | Main menu (Options, Quit) |
 | <kbd>Tab</kbd> | Toggle mouse capture |
-| <kbd>Esc</kbd> | Back to the main menu |
 | <kbd>F2</kbd> | Screenshot → `~/.farlands/screenshots/` |
+| <kbd>F3</kbd> | Debug overlay (FPS, GPU passes, chunks, biome) |
 
-The world is saved to `~/.farlands/world/`. Delete that folder to start from a fresh world.
+### Performance tips
+
+Everything can be tuned live in **Options**. On slower GPUs, lower the **render distance** (vertex load) and the **render scale** (pixel load), or disable **SSR** and **clouds**. Shadows are cheap once cached; their cost only shows when you move several blocks or change the sun.
 
 ---
 
@@ -170,81 +177,88 @@ The world is saved to `~/.farlands/world/`. Delete that folder to start from a f
 
 ### One frame
 
-Everything runs on the main thread. Each frame polls GLFW, moves the player, updates the camera and the ImGui overlay, then records one command buffer with three passes. World work (loading, generation, meshing, upload) only happens on the frame where the player enters a new chunk.
+The CPU streams the world, moves the player, then records a single command buffer. The scene is rendered off-screen in HDR and composed into the swapchain at the end:
 
-<p align="center">
-  <img src="docs/assets/architecture.svg" alt="Diagram of Application::mainLoop: input, player, world, camera, ImGui, drawFrame; on chunk change: load or generate, remesh, upload; GPU: sky, terrain, ImGui, present" width="100%">
-</p>
+```mermaid
+flowchart LR
+    A[Sky LUT<br/>256×128] --> B[Sky environment<br/>+ clouds, 512×256]
+    B --> C[Clouds<br/>½ resolution]
+    C --> D[Shadow map<br/>cached]
+    D --> E[Scene<br/>opaque · cutout · sky]
+    E --> F[Water<br/>SSR · refraction]
+    F --> G[Bloom<br/>5 mips]
+    G --> H[Composite<br/>god rays · ACES · UI]
+```
+
+All passes share one pipeline layout: a global descriptor set (uniforms, texture arrays, shadow map, sky, render targets) and 32 bytes of push constants (the chunk origin relative to the camera).
+
+### Lighting model
+
+Light is expressed in the units of the sky model: the sun reaches the top of the atmosphere with an intensity of **22** and is attenuated by the same Rayleigh/Mie transmittance on the CPU (sun color) and on the GPU (sky radiance). Surfaces are Lambertian:
+
+```glsl
+// shaders/terrain_body.glsl (simplified)
+vec3 sun     = sunColor * saturate(dot(N, L)) * sunShadow(pos, N) * cloudShadow(world);
+vec3 ambient = skyAmbient(N) * ao;                       // a few taps of the sky LUT
+vec3 color   = albedo * (sun / PI + ambient);
+color        = applyFog(color, pos, distance);           // height fog tinted by the sky
+```
+
+The composite pass applies the exposure, ACES tonemapping and saturation. The swapchain is sRGB, so the gamma curve is applied by the hardware.
 
 ### Infinite world streaming
 
-`World::updateAroundPlayer()` keeps every chunk within **5 chunks** of the player in memory and frees those more than **7** away. The 2-chunk gap is hysteresis: walking back and forth over a border does not reload anything. A chunk is read from disk when possible, otherwise generated and saved right away. Its four neighbours are flagged dirty so the seams get remeshed.
-
-<p align="center">
-  <img src="docs/assets/chunk-streaming.svg" alt="Animated top-down grid: chunks generated in green, unloaded and saved in orange, reloaded from disk in blue as the player walks" width="100%">
-</p>
+`World::update()` runs on the main thread every frame. When the player enters a new chunk it queues **generation jobs** for every missing chunk within the render distance + 1, sorted by distance, and unloads chunks beyond + 2.5. Worker threads generate chunks; as soon as a chunk and its 8 neighbours exist, a **meshing job** builds its mesh from an immutable 3×3 neighbourhood (`shared_ptr<const Chunk>`). Finished meshes are uploaded to their own GPU buffer, a few dozen per frame; replaced buffers are destroyed once no frame in flight uses them.
 
 ### Terrain generation
 
-`BiomeManager::getHeightAt()` adds three Perlin fBm layers: slow **continents**, small **hills**, and **ridges** (`(1 − |n|)²`) weighted towards high ground. Very low areas are pushed down to make oceans. Columns are filled with bedrock, stone, a sub-surface layer and a surface block, then water up to sea level.
+`TerrainGenerator::getHeightAt()` combines continents, hills and detail fBm, deepens oceans, carves lakes into valleys, and raises mountains with a **ridged multifractal** (Musgrave) behind domain warping, softly compressed below the world ceiling. The biome is chosen from the height (ocean, beach, mountains, snowy peaks) then from temperature × humidity. Surfaces follow the slope: rock on cliffs, snow above the snow line, two layers of grass on medium slopes. Trees are placed on a jittered 5×5 grid hashed from the world seed, so a tree spanning several chunks is identical in each of them.
 
 <p align="center">
-  <img src="docs/assets/terrain-noise.svg" alt="Animated breakdown of the height function along a real 1024-block slice: continent, hill and ridge curves summed into a terrain cross-section with water" width="100%">
+  <img src="docs/assets/terrain-map.jpg" alt="Top-down map of 2304 by 2304 blocks rendered by terrain_preview: lakes, forests, cherry groves in pink and snowy mountain ranges" width="70%"><br>
+  <sub>Rendered by <code>terrain_preview</code> for seed 42 (1 pixel = 3 blocks).</sub>
 </p>
 
-The biome is picked by **first match**: terrain height decides oceans, beaches and mountains, then temperature × humidity decide the rest. The map below is rendered by the engine's own `BiomeManager` for seed 42.
+### Meshing
 
-<p align="center">
-  <img src="docs/assets/biomes.svg" alt="Hill-shaded biome map of 1024 by 1024 blocks around spawn, the eight biome rules, and a climate chart with a probe following a real walk" width="100%">
-</p>
-
-### Meshing & lighting
-
-`generateChunkMesh()` walks the 65 536 blocks of a chunk and emits a face only if the neighbour is air or a different transparent block. It looks into neighbouring chunks, and treats chunks that aren't loaded yet as solid so no wall appears at the edge of the world. Each vertex stores an **ambient occlusion** factor computed from its three neighbours (two sides + corner), as in the classic *0fps* technique.
+`buildChunkMesh()` emits a face only when the neighbour doesn't hide it, looks into the neighbouring chunks, and computes a per-vertex **ambient occlusion** factor from the two sides and the corner, flipping the quad diagonal to avoid anisotropy. Plants are two crossed double-sided quads, water surfaces are lowered to 7/8 of a block, and the indices are split into **opaque**, **cutout** (leaves, plants, glass) and **water** ranges so that the opaque bulk renders without `discard`.
 
 <p align="center">
   <img src="docs/assets/meshing.svg" alt="Left: cross-section where interior faces are culled. Right: isometric AO demo where blocks appear one by one and the corner darkens from 1 to 0" width="100%">
 </p>
 
-The terrain fragment shader then combines everything:
-
-```glsl
-// simplified from shaders/shader.frag
-vec4  tex      = texture(texSampler, uvLayer) * vec4(vertexColor, 1.0);  // texture array + biome tint
-float lighting = 0.35 + 0.65 * max(dot(normal, sunDir), 0.0);            // ambient + sun
-float ao       = mix(0.15, 1.0, vertexAO);                                // baked occlusion
-vec3  color    = mix(tex.rgb * lighting * ao, fogColor, fogFactor);       // distance / underwater fog
-```
+A vertex is **20 bytes**: the position inside the chunk, a packed word (texture layer, normal, AO, UV corner, block id, wave flag) and an RGBA8 biome tint.
 
 ### Blocks
 
-Blocks are data-driven: `BlockDatabase` loads `assets/data/blocks.json` at start-up. Each entry gives its flags and one texture per face, and the renderer packs every face texture into the texture array.
+Blocks are data-driven: `BlockDatabase` loads `assets/data/blocks.json` at start-up. Each entry gives its flags, how it is rendered, its biome tint and one texture per face.
 
 <p align="center">
-  <img src="docs/assets/blocks.svg" alt="The 14 visible blocks rendered as textured isometric cubes: dirt, grass, stone, log, plank, glass, leaves, sand, water, cobblestone, bedrock, gravel, iron ore, coal ore" width="100%">
+  <img src="docs/assets/blocks.svg" alt="The original 14 visible blocks rendered as textured isometric cubes" width="100%">
 </p>
 
 ```json
 {
-  "id": 2,
-  "name": "Grass",
-  "transparent": false,
+  "id": 21,
+  "name": "Cherry_Leaves",
+  "renderType": "cube",
+  "transparent": true,
   "solid": true,
-  "hardness": 0.6,
-  "color": [0.36, 0.58, 0.28],
-  "colorTop": [0.46, 0.72, 0.31],
-  "texture": "textures/block/grass_block_side.png",
-  "textureTop": "textures/block/grass_block_top.png",
-  "textureBottom": "textures/block/dirt_side.png"
+  "hardness": 0.2,
+  "tint": "none",
+  "waving": true,
+  "texture": "textures/block/cherry_leaves.png"
 }
 ```
 
+`renderType` is `cube`, `cross` (plants) or `liquid`; `tint` is `none`, `grass` or `foliage`. The textures of the newer blocks are generated by `scripts/gen_textures.py`.
+
 ### Saving
 
-Chunks are stored x-first, then y, then z, so whole underground layers collapse into a few runs of `[type: u8][count: u16]`. A file starts with a magic number and a version. Older or corrupted files are simply regenerated.
+Only chunks modified by the player are written to `~/.farlands/world` (block editing is not implemented yet, so the world is regenerated from the seed). Chunks are stored x-first, then y, then z, as runs of `[type: u8][count: u16]` after a magic number and a version; older or corrupted files are simply regenerated.
 
 <p align="center">
-  <img src="docs/assets/chunk-format.svg" alt="Hex dump of a real chunk file: magic FLCH, version 2, chunk coordinates, then RLE runs; a 65 536-block chunk stored in 1 648 bytes" width="100%">
+  <img src="docs/assets/chunk-format.svg" alt="Hex dump of a chunk file: magic FLCH, version, chunk coordinates, then RLE runs" width="100%">
 </p>
 
 ---
@@ -254,44 +268,50 @@ Chunks are stored x-first, then y, then z, so whole underground layers collapse 
 ```text
 Farlands/
 ├── src/
-│   ├── main.cpp               entry point, global exception guard
-│   ├── app.{h,cpp}            Application — window, main loop, input, HUD, UBO
-│   ├── core/                  logger.h (coloured logs) · types.h (Vertex, UBO) · stb_* (image I/O)
+│   ├── main.cpp                entry point, global exception guard
+│   ├── app.{h,cpp}             Application — window, main loop, input, HUD, scenic spawn
+│   ├── core/                   logger.h · types.h (Vertex, uniforms) · job_system.* · stb_*
 │   ├── renderer/
-│   │   ├── renderer.*         frame orchestration, ImGui, F2 screenshots
-│   │   ├── vk_context.*       instance, device, queues, validation layers
-│   │   ├── vk_swapchain.*     swapchain, depth buffer, framebuffers
-│   │   ├── vk_pipeline.*      render pass, terrain + sky pipelines
-│   │   ├── vk_buffers.*       vertex / index / uniform buffers, descriptors
-│   │   ├── vk_texture.*       block texture array (+ mipmaps), UI textures
-│   │   └── camera.*           view & projection matrices
+│   │   ├── renderer.*          pass chain, chunk buffers, descriptors, GPU timers, screenshots
+│   │   ├── pipelines.*         render passes and pipeline builder
+│   │   ├── textures.*          block texture arrays (+ normal maps), UI images, cloud noise
+│   │   ├── atmosphere.*        sun direction and transmittance (CPU)
+│   │   ├── vk_context.*        instance, device, queues, validation layers
+│   │   ├── vk_swapchain.*      swapchain, present modes, framebuffers
+│   │   ├── vk_utils.*          images, buffers, barriers, samplers
+│   │   ├── camera.*            reverse-Z projection, frustum planes
+│   │   └── render_settings.h   options exposed in the menu
 │   ├── world/
-│   │   ├── world.*            chunk map, streaming, world mesh assembly
-│   │   ├── chunk.*            16×256×16 block storage
-│   │   ├── chunk_mesh.*       face culling + per-vertex AO
-│   │   ├── chunk_serializer.* RLE chunk files
-│   │   ├── biome.*            BiomeManager — height, climate, biome rules
-│   │   ├── noise.*            Perlin noise + fBm octaves
-│   │   └── block.*            BlockDatabase (JSON)
-│   ├── player/player.*        first-person controller, physics, AABB
-│   └── ui/menu.*              main menu
-├── shaders/                   shader.{vert,frag} (terrain) · sky.{vert,frag} · compile.sh
-├── assets/                    data/blocks.json · textures/ · Farlands.png (logo)
-├── external/                  imgui (submodule) · nlohmann/json.hpp
-└── docs/assets/               README visuals and screenshots
+│   │   ├── world.*             streaming, job scheduling, mesh events
+│   │   ├── terrain_generator.* relief, biomes, surface, trees, plants
+│   │   ├── chunk.*             16×256×16 block storage + biome tints
+│   │   ├── chunk_mesh.*        face culling, AO, plants, water
+│   │   ├── chunk_serializer.*  RLE chunk files
+│   │   ├── biome.*             biome table
+│   │   ├── noise.*             Perlin noise + fBm octaves
+│   │   └── block.*             BlockDatabase (JSON)
+│   ├── player/player.*         first-person controller, physics, AABB
+│   └── ui/menu.*               main menu and Options window
+├── shaders/                    common · atmosphere · lighting (*.glsl) and the pass shaders
+├── tools/terrain_preview.cpp   top-down map of the terrain generator
+├── scripts/gen_textures.py     procedural textures for the newer blocks
+├── assets/                     data/blocks.json · textures/ · Farlands.png (logo)
+├── external/                   imgui (submodule) · nlohmann/json.hpp
+└── docs/assets/                README visuals and screenshots
 ```
 
 ### Tuning knobs
 
 | What | Where | Default |
 | --- | --- | --- |
-| Render distance | `RENDER_RADIUS` in `src/app.h` | 5 chunks (unloads at 7) |
-| World seed | `m_biomeManager{42}` in `src/world/world.h` | 42 |
-| Sea level | `SEA_LEVEL` in `src/world/biome.h` | 30 |
+| Graphics options | `RenderSettings` in `src/renderer/render_settings.h` (or the Options window) | render distance 20, shadows 4096², clouds 0.58 |
+| World seed | `m_world{42}` in `src/app.h` | 42 |
+| Sea level | `SEA_LEVEL` in `src/world/biome.h` | 62 |
+| Snow line | `TerrainGenerator::getSnowLine()` | 156 ± 12 |
+| Biomes, tree and plant densities | `src/world/biome.cpp` | — |
 | Chunk size | `CHUNK_SIZE_*` in `src/world/chunk.h` | 16 × 256 × 16 |
 | Physics | `GRAVITY`, `JUMP_VELOCITY`, `MOVE_SPEED` in `src/player/player.h` | −20 · 8 · 6 |
-| Fog | `fogRange` in `src/app.cpp` | 60 % → 100 % of the render distance |
-| Sun direction | `shaders/shader.frag`, `shaders/sky.frag` | `normalize(0.4, 1.0, 0.3)` |
+| Sun intensity / exposure | `SUN_IRRADIANCE` in `renderer.cpp`, `composite.frag` | 22 · 0.5 |
 
 ---
 
@@ -299,26 +319,22 @@ Farlands/
 
 **Done**
 
-- [x] Vulkan bootstrap — instance, device, swapchain, render pass, terrain & sky pipelines (MoltenVK-ready)
-- [x] JSON block database, texture array with per-face layers and mipmaps
-- [x] First-person controller — delta time, gravity, jump, swimming, AABB collisions
-- [x] Procedural terrain — Perlin fBm, 8 biomes, water, biome tinting
-- [x] Infinite world — chunk streaming with hysteresis, RLE persistence
-- [x] Face culling, per-vertex ambient occlusion, sun lighting, distance & underwater fog
-- [x] Dear ImGui debug overlay, main menu, F2 screenshots
+- [x] Vulkan bootstrap, MoltenVK portability, validation-clean
+- [x] HDR pass chain: atmosphere, volumetric clouds, shadow map, water with SSR, bloom, god rays, ACES
+- [x] Multithreaded generation and meshing, one GPU buffer per chunk, frustum culling
+- [x] Terrain with lakes, ridged mountains, snow, 10 biomes, trees, grass and flowers
+- [x] First-person controller with swimming and AABB collisions
+- [x] Main menu over the live world, Options window, F3 overlay with GPU timers, F2 screenshots
 
 **Next**
 
-- [ ] Multithreaded chunk generation and meshing (job system)
-- [ ] One GPU buffer per chunk instead of re-uploading the whole world mesh
-- [ ] Greedy meshing
-- [ ] Frustum culling
-- [ ] Translucent pass for water, glass and leaves (blending + sorting)
-- [ ] Breaking and placing blocks — the targeted block is already ray-marched for the overlay
-- [ ] Trees (`treeDensity` is already in `BiomeData`), caves and ores
-- [ ] Snow surface for the Snowy Tundra
-- [ ] Options menu — render distance, FOV, mouse sensitivity
-- [ ] Day / night cycle and dynamic lighting
+- [ ] Greedy meshing (fewer vertices for shadows and distant terrain)
+- [ ] Cascaded shadow maps
+- [ ] Distant terrain LOD beyond the render distance
+- [ ] Breaking and placing blocks (and saving them)
+- [ ] Caves
+- [ ] Day / night cycle, moon and stars
+- [ ] Point lights (lanterns, torches)
 
 ---
 
@@ -350,7 +366,14 @@ cmake --build build-debug -j
 VK_LAYER_PATH=/opt/homebrew/opt/vulkan-validationlayers/share/vulkan/explicit_layer.d ./build-debug/farlands
 ```
 
-- Shaders are recompiled by CMake whenever a `.vert` / `.frag` changes. `shaders/compile.sh [out_dir]` does the same by hand.
+Preview the terrain generator without starting the engine:
+
+```bash
+cmake --build build --target terrain_preview
+./build/terrain_preview map.png 1024 0 0 4   # output, size, center x, center z, blocks per pixel
+```
+
+- Shaders are recompiled by CMake whenever a `.vert`, `.frag` or included `.glsl` changes. `shaders/compile.sh [out_dir]` does the same by hand.
 - Formatting follows the repository's `.clang-format`.
 - Asset paths (`ASSETS_DIR`) and shader paths (`SHADER_DIR`) are baked in at configure time, so the binary can be launched from any directory.
 
@@ -363,6 +386,7 @@ VK_LAYER_PATH=/opt/homebrew/opt/vulkan-validationlayers/share/vulkan/explicit_la
 - [nlohmann/json](https://github.com/nlohmann/json) — block database parsing
 - [stb](https://github.com/nothings/stb) — `stb_image`, `stb_image_write`, `stb_image_resize2`
 - [MoltenVK](https://github.com/KhronosGroup/MoltenVK) — Vulkan on macOS
+- Techniques: Nishita's sky model, Schneider's Perlin–Worley clouds (*Nubis*), Jimenez's bloom and interleaved gradient noise, Hill's ACES fit, 0fps's voxel AO
 
 Farlands is a personal project, not affiliated with Mojang Studios or Microsoft. Some placeholder textures in `assets/textures/` follow the Minecraft resource-pack layout; they belong to their respective owners and are not covered by this project's license.
 
