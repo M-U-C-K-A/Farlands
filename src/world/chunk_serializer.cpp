@@ -146,6 +146,7 @@ bool ChunkSerializer::load(Chunk &chunk, const std::string &worldDir)
 			chunk.setBlock(x, y, z, static_cast<BlockType>(decoded[index]));
 		}
 
-	chunk.clearDirty();
+	chunk.updateTopY();
+	chunk.setModified(true); // déjà modifié par le joueur (sinon non sauvegardé)
 	return true;
 }

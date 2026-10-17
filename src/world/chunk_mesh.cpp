@@ -1,244 +1,250 @@
+// -----------------------------------------------------------------------------
+// Fichier : chunk_mesh.cpp
+// Rôle : Maillage d'un chunk : culling des faces cachées, occlusion ambiante
+// par sommet (avec inversion de diagonale), plantes en croix, eau abaissée.
+// -----------------------------------------------------------------------------
 #include "chunk_mesh.h"
+
 #include "block.h"
-#include "world.h"
-#include "core/logger.h"
 
-// ── Ambient Occlusion ───────────────────────────────────────────
-// Calculates vertex AO based on three neighboring blocks (side1, side2, corner)
-// Returns a value between 0.0 (fully occluded) and 1.0 (no occlusion)
-static float vertexAO(bool side1, bool side2, bool corner)
+#include <algorithm>
+
+namespace
+	{
+		// Coins de chaque face (ordre CCW vu de l'extérieur) et UV associés
+		struct FaceDef
+		{
+			glm::ivec3 normal;
+			glm::ivec3 corners[4];
+		};
+
+		// 0 +Z, 1 -Z, 2 +Y, 3 -Y, 4 +X, 5 -X
+		const FaceDef FACES[6] = {
+		  {{0, 0, 1}, {{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}},
+		  {{0, 0, -1}, {{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 1, 0}}},
+		  {{0, 1, 0}, {{0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {0, 1, 0}}},
+		  {{0, -1, 0}, {{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}}},
+		  {{1, 0, 0}, {{1, 0, 1}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}}},
+		  {{-1, 0, 0}, {{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}}},
+		};
+		const uint32_t FACE_U[4] = {0, 1, 1, 0};
+		const uint32_t FACE_V[4] = {1, 1, 0, 0};
+
+		constexpr float WATER_SURFACE = 0.875f;
+
+		int faceLayer(const BlockData &bd, int face)
+		{
+			switch(face)
+				{
+				case 0: return bd.texLayerFront;
+				case 1: return bd.texLayerBack;
+				case 2: return bd.texLayerTop;
+				case 3: return bd.texLayerBottom;
+				case 4: return bd.texLayerRight;
+				default: return bd.texLayerLeft;
+				}
+		}
+
+		// Bloc qui projette de l'occlusion ambiante
+		bool occludes(BlockType t)
+		{
+			const BlockData &d = BlockDatabase::Get(t);
+			return t != BlockType::Air && d.renderType == RenderType::Cube;
+		}
+
+		uint32_t hashPos(int x, int y, int z)
+		{
+			uint32_t h = static_cast<uint32_t>(x) * 73856093u
+						 ^ static_cast<uint32_t>(y) * 19349663u
+						 ^ static_cast<uint32_t>(z) * 83492791u;
+			h ^= h >> 13;
+			h *= 0x5bd1e995u;
+			h ^= h >> 15;
+			return h;
+		}
+
+		struct MeshBuilder
+		{
+			std::vector<Vertex> vertices;
+			std::vector<uint32_t> indices;
+
+			void quad(const Vertex v[4], bool flip)
+			{
+				uint32_t base = static_cast<uint32_t>(vertices.size());
+				vertices.insert(vertices.end(), v, v + 4);
+				if(!flip)
+					indices.insert(indices.end(), {base, base + 1, base + 2,
+												   base + 2, base + 3, base});
+				else
+					indices.insert(indices.end(), {base + 1, base + 2, base + 3,
+												   base + 3, base, base + 1});
+			}
+		};
+	}
+
+ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 {
-  if(side1 && side2)
-    return 0.0f; // Fully occluded (concave corner)
-  return 1.0f - (static_cast<float>(side1) + static_cast<float>(side2) + static_cast<float>(corner)) / 3.0f;
-}
+	const Chunk &chunk = n.center();
+	MeshBuilder solid;
+	MeshBuilder water;
+	glm::ivec2 cpos = chunk.getChunkPos();
+	int topY = std::min(chunk.getTopY(), CHUNK_SIZE_Y);
 
-ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
-  ChunkMesh mesh;
+	for(int z = 0; z < CHUNK_SIZE_Z; ++z)
+		{
+			for(int x = 0; x < CHUNK_SIZE_X; ++x)
+				{
+					uint32_t grassTint = chunk.getGrassTint(x, z);
+					uint32_t foliageTint = chunk.getFoliageTint(x, z);
 
-  glm::ivec2 cpos = chunk.getChunkPos();
-  LOG_TRACE("Generating mesh for chunk (" << cpos.x << ", " << cpos.y << ")...");
+					for(int y = 0; y < topY; ++y)
+						{
+							BlockType type = chunk.getBlockUnchecked(x, y, z);
+							if(type == BlockType::Air)
+								continue;
 
-  auto getBlock = [&](int x, int y, int z) {
-    if (y < 0 || y >= CHUNK_SIZE_Y) return BlockType::Air;
-    int cx = cpos.x;
-    int cz = cpos.y;
-    
-    if (x < 0) { cx--; x += CHUNK_SIZE_X; }
-    else if (x >= CHUNK_SIZE_X) { cx++; x -= CHUNK_SIZE_X; }
+							const BlockData &bd = BlockDatabase::Get(type);
+							uint32_t typeId = static_cast<uint32_t>(type);
 
-    if (z < 0) { cz--; z += CHUNK_SIZE_Z; }
-    else if (z >= CHUNK_SIZE_Z) { cz++; z -= CHUNK_SIZE_Z; }
+							uint32_t tint = 0xFFFFFFFFu;
+							if(bd.tint == TintType::Foliage)
+								tint = foliageTint;
+							else if(bd.tint == TintType::Grass)
+								tint = grassTint;
 
-    if (cx == cpos.x && cz == cpos.y) {
-      return chunk.getBlock(x, y, z);
-    } else if (world) {
-      const Chunk* neighbor = world->getChunk(cx, cz);
-      if (neighbor) return neighbor->getBlock(x, y, z);
-      // Voisin non chargé : considéré plein pour ne pas générer de "mur"
-      // au bord du monde chargé (le chunk est remaillé quand il arrive).
-      return BlockType::Stone;
-    }
-    return BlockType::Air;
-  };
+							// ── Plantes : deux quads en croix, double face ──
+							if(bd.renderType == RenderType::Cross)
+								{
+									uint32_t h = hashPos(cpos.x * 16 + x, y,
+														 cpos.y * 16 + z);
+									float ox = ((h & 15u) / 15.0f - 0.5f) * 0.4f;
+									float oz = (((h >> 4) & 15u) / 15.0f - 0.5f) * 0.4f;
+									float sy = 0.8f + ((h >> 8) & 7u) / 7.0f * 0.3f;
+									const float a = 0.15f, b = 0.85f;
+									glm::vec3 base(x + ox, y, z + oz);
+									glm::vec2 d[2][2] = {{{a, a}, {b, b}}, {{a, b}, {b, a}}};
+									uint32_t layer = static_cast<uint32_t>(bd.texLayerFront);
+									for(auto &diag : d)
+										{
+											Vertex v[4];
+											glm::vec3 p0 = base + glm::vec3(diag[0].x, 0, diag[0].y);
+											glm::vec3 p1 = base + glm::vec3(diag[1].x, 0, diag[1].y);
+											glm::vec3 up(0, sy, 0);
+											v[0] = {p0, Vertex::pack(layer, 6, 0, 0, 1, typeId, 0), tint};
+											v[1] = {p1, Vertex::pack(layer, 6, 0, 1, 1, typeId, 0), tint};
+											v[2] = {p1 + up, Vertex::pack(layer, 6, 0, 1, 0, typeId, 2), tint};
+											v[3] = {p0 + up, Vertex::pack(layer, 6, 0, 0, 0, typeId, 2), tint};
+											solid.quad(v, false);
+											Vertex r[4] = {v[1], v[0], v[3], v[2]};
+											solid.quad(r, false);
+										}
+									continue;
+								}
 
-  // Helper to check if a block is solid (for AO)
-  auto isSolid = [&](int x, int y, int z) -> bool {
-    return getBlock(x, y, z) != BlockType::Air;
-  };
+							bool isLiquid = bd.renderType == RenderType::Liquid;
+							bool waterAbove = isLiquid && n.get(x, y + 1, z) == BlockType::Water;
+							uint32_t wave = bd.waving ? 1u : 0u;
 
-  auto addFace = [&](int x, int y, int z, int faceType, glm::vec3 color,
-                     int texLayer, float blockTypeID) {
-    uint32_t idx = static_cast<uint32_t>(mesh.vertices.size());
-    float fx = static_cast<float>(x);
-    float fy = static_cast<float>(y);
-    float fz = static_cast<float>(z);
+							for(int f = 0; f < 6; ++f)
+								{
+									const FaceDef &fd = FACES[f];
+									BlockType nb = n.get(x + fd.normal.x, y + fd.normal.y,
+														 z + fd.normal.z);
 
-    glm::vec3 p000(fx, fy, fz);
-    glm::vec3 p100(fx + 1, fy, fz);
-    glm::vec3 p110(fx + 1, fy + 1, fz);
-    glm::vec3 p010(fx, fy + 1, fz);
-    glm::vec3 p001(fx, fy, fz + 1);
-    glm::vec3 p101(fx + 1, fy, fz + 1);
-    glm::vec3 p111(fx + 1, fy + 1, fz + 1);
-    glm::vec3 p011(fx, fy + 1, fz + 1);
+									// ── Visibilité de la face ──
+									bool visible;
+									if(isLiquid)
+										visible = nb != BlockType::Water
+												  && !BlockDatabase::IsOpaqueCube(nb);
+									else if(BlockDatabase::IsOpaqueCube(nb))
+										visible = false;
+									else if(nb == type && bd.isTransparent
+											&& type == BlockType::Glass)
+										visible = false; // vitres jointives
+									else
+										visible = true;
+									if(!visible)
+										continue;
 
-    float layer = static_cast<float>(texLayer);
-    glm::vec3 uv00(0.0f, 0.0f, layer);
-    glm::vec3 uv10(1.0f, 0.0f, layer);
-    glm::vec3 uv01(0.0f, 1.0f, layer);
-    glm::vec3 uv11(1.0f, 1.0f, layer);
+									// Teinte : herbe uniquement sur le dessus
+									uint32_t faceTint = tint;
+									if(type == BlockType::Grass && f != 2)
+										faceTint = 0xFFFFFFFFu;
 
+									uint32_t layer = static_cast<uint32_t>(faceLayer(bd, f));
+									Vertex v[4];
+									uint32_t ao[4] = {0, 0, 0, 0};
 
+									for(int c = 0; c < 4; ++c)
+										{
+											glm::ivec3 corner = fd.corners[c];
+											glm::vec3 p(x + corner.x, y + corner.y, z + corner.z);
+											if(isLiquid && corner.y == 1 && !waterAbove)
+												p.y = y + WATER_SURFACE;
 
-    glm::vec3 normal;
-    float ao0, ao1, ao2, ao3;
+											if(!isLiquid)
+												{
+													// Occlusion ambiante du coin
+													glm::ivec3 base = glm::ivec3(x, y, z) + fd.normal;
+													glm::ivec3 d1(0), d2(0);
+													if(fd.normal.x != 0)
+														{
+															d1.y = corner.y ? 1 : -1;
+															d2.z = corner.z ? 1 : -1;
+														}
+													else if(fd.normal.y != 0)
+														{
+															d1.x = corner.x ? 1 : -1;
+															d2.z = corner.z ? 1 : -1;
+														}
+													else
+														{
+															d1.x = corner.x ? 1 : -1;
+															d2.y = corner.y ? 1 : -1;
+														}
+													bool s1 = occludes(n.get(base.x + d1.x, base.y + d1.y, base.z + d1.z));
+													bool s2 = occludes(n.get(base.x + d2.x, base.y + d2.y, base.z + d2.z));
+													bool cc = occludes(n.get(base.x + d1.x + d2.x,
+																			 base.y + d1.y + d2.y,
+																			 base.z + d1.z + d2.z));
+													ao[c] = (s1 && s2) ? 3u : static_cast<uint32_t>(s1 + s2 + cc);
+												}
 
-    switch (faceType) {
-    case 0: { // Front (z+1), normal = +Z
-      normal = glm::vec3(0, 0, 1);
-      // AO pour chaque coin de la face z+1
-      ao0 = vertexAO(isSolid(x-1, y,   z+1), isSolid(x,   y-1, z+1), isSolid(x-1, y-1, z+1)); // bottom-left
-      ao1 = vertexAO(isSolid(x+1, y,   z+1), isSolid(x,   y-1, z+1), isSolid(x+1, y-1, z+1)); // bottom-right
-      ao2 = vertexAO(isSolid(x+1, y,   z+1), isSolid(x,   y+1, z+1), isSolid(x+1, y+1, z+1)); // top-right
-      ao3 = vertexAO(isSolid(x-1, y,   z+1), isSolid(x,   y+1, z+1), isSolid(x-1, y+1, z+1)); // top-left
-      mesh.vertices.push_back({p001, color, uv01, normal, ao0, blockTypeID});
-      mesh.vertices.push_back({p101, color, uv11, normal, ao1, blockTypeID});
-      mesh.vertices.push_back({p111, color, uv10, normal, ao2, blockTypeID});
-      mesh.vertices.push_back({p011, color, uv00, normal, ao3, blockTypeID});
-      break;
-    }
-    case 1: { // Back (z), normal = -Z
-      normal = glm::vec3(0, 0, -1);
-      ao0 = vertexAO(isSolid(x+1, y,   z-1), isSolid(x,   y-1, z-1), isSolid(x+1, y-1, z-1));
-      ao1 = vertexAO(isSolid(x-1, y,   z-1), isSolid(x,   y-1, z-1), isSolid(x-1, y-1, z-1));
-      ao2 = vertexAO(isSolid(x-1, y,   z-1), isSolid(x,   y+1, z-1), isSolid(x-1, y+1, z-1));
-      ao3 = vertexAO(isSolid(x+1, y,   z-1), isSolid(x,   y+1, z-1), isSolid(x+1, y+1, z-1));
-      mesh.vertices.push_back({p100, color, uv01, normal, ao0, blockTypeID});
-      mesh.vertices.push_back({p000, color, uv11, normal, ao1, blockTypeID});
-      mesh.vertices.push_back({p010, color, uv10, normal, ao2, blockTypeID});
-      mesh.vertices.push_back({p110, color, uv00, normal, ao3, blockTypeID});
-      break;
-    }
-    case 2: { // Top (y+1), normal = +Y
-      normal = glm::vec3(0, 1, 0);
-      ao0 = vertexAO(isSolid(x-1, y+1, z),   isSolid(x,   y+1, z+1), isSolid(x-1, y+1, z+1));
-      ao1 = vertexAO(isSolid(x+1, y+1, z),   isSolid(x,   y+1, z+1), isSolid(x+1, y+1, z+1));
-      ao2 = vertexAO(isSolid(x+1, y+1, z),   isSolid(x,   y+1, z-1), isSolid(x+1, y+1, z-1));
-      ao3 = vertexAO(isSolid(x-1, y+1, z),   isSolid(x,   y+1, z-1), isSolid(x-1, y+1, z-1));
-      mesh.vertices.push_back({p011, color, uv01, normal, ao0, blockTypeID});
-      mesh.vertices.push_back({p111, color, uv11, normal, ao1, blockTypeID});
-      mesh.vertices.push_back({p110, color, uv10, normal, ao2, blockTypeID});
-      mesh.vertices.push_back({p010, color, uv00, normal, ao3, blockTypeID});
-      break;
-    }
-    case 3: { // Bottom (y), normal = -Y
-      normal = glm::vec3(0, -1, 0);
-      ao0 = vertexAO(isSolid(x-1, y-1, z),   isSolid(x,   y-1, z-1), isSolid(x-1, y-1, z-1));
-      ao1 = vertexAO(isSolid(x+1, y-1, z),   isSolid(x,   y-1, z-1), isSolid(x+1, y-1, z-1));
-      ao2 = vertexAO(isSolid(x+1, y-1, z),   isSolid(x,   y-1, z+1), isSolid(x+1, y-1, z+1));
-      ao3 = vertexAO(isSolid(x-1, y-1, z),   isSolid(x,   y-1, z+1), isSolid(x-1, y-1, z+1));
-      mesh.vertices.push_back({p000, color, uv01, normal, ao0, blockTypeID});
-      mesh.vertices.push_back({p100, color, uv11, normal, ao1, blockTypeID});
-      mesh.vertices.push_back({p101, color, uv10, normal, ao2, blockTypeID});
-      mesh.vertices.push_back({p001, color, uv00, normal, ao3, blockTypeID});
-      break;
-    }
-    case 4: { // Right (x+1), normal = +X
-      normal = glm::vec3(1, 0, 0);
-      ao0 = vertexAO(isSolid(x+1, y,   z+1), isSolid(x+1, y-1, z),   isSolid(x+1, y-1, z+1));
-      ao1 = vertexAO(isSolid(x+1, y,   z-1), isSolid(x+1, y-1, z),   isSolid(x+1, y-1, z-1));
-      ao2 = vertexAO(isSolid(x+1, y,   z-1), isSolid(x+1, y+1, z),   isSolid(x+1, y+1, z-1));
-      ao3 = vertexAO(isSolid(x+1, y,   z+1), isSolid(x+1, y+1, z),   isSolid(x+1, y+1, z+1));
-      mesh.vertices.push_back({p101, color, uv01, normal, ao0, blockTypeID});
-      mesh.vertices.push_back({p100, color, uv11, normal, ao1, blockTypeID});
-      mesh.vertices.push_back({p110, color, uv10, normal, ao2, blockTypeID});
-      mesh.vertices.push_back({p111, color, uv00, normal, ao3, blockTypeID});
-      break;
-    }
-    case 5: { // Left (x), normal = -X
-      normal = glm::vec3(-1, 0, 0);
-      ao0 = vertexAO(isSolid(x-1, y,   z-1), isSolid(x-1, y-1, z),   isSolid(x-1, y-1, z-1));
-      ao1 = vertexAO(isSolid(x-1, y,   z+1), isSolid(x-1, y-1, z),   isSolid(x-1, y-1, z+1));
-      ao2 = vertexAO(isSolid(x-1, y,   z+1), isSolid(x-1, y+1, z),   isSolid(x-1, y+1, z+1));
-      ao3 = vertexAO(isSolid(x-1, y,   z-1), isSolid(x-1, y+1, z),   isSolid(x-1, y+1, z-1));
-      mesh.vertices.push_back({p000, color, uv01, normal, ao0, blockTypeID});
-      mesh.vertices.push_back({p001, color, uv11, normal, ao1, blockTypeID});
-      mesh.vertices.push_back({p011, color, uv10, normal, ao2, blockTypeID});
-      mesh.vertices.push_back({p010, color, uv00, normal, ao3, blockTypeID});
-      break;
-    }
-    }
+											v[c] = {p, Vertex::pack(layer, static_cast<uint32_t>(f), ao[c],
+																	FACE_U[c], FACE_V[c], typeId, wave),
+													faceTint};
+										}
 
-    mesh.indices.push_back(idx + 0);
-    mesh.indices.push_back(idx + 1);
-    mesh.indices.push_back(idx + 2);
-    mesh.indices.push_back(idx + 2);
-    mesh.indices.push_back(idx + 3);
-    mesh.indices.push_back(idx + 0);
-  };
+									// Diagonale qui évite l'anisotropie de l'AO
+									bool flip = ao[0] + ao[2] > ao[1] + ao[3];
+									(isLiquid ? water : solid).quad(v, flip);
+								}
+						}
+				}
+		}
 
-  for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
-    for (int y = 0; y < CHUNK_SIZE_Y; ++y) {
-      for (int x = 0; x < CHUNK_SIZE_X; ++x) {
-        BlockType type = chunk.getBlock(x, y, z);
-        if (type == BlockType::Air)
-          continue;
+	ChunkMeshData mesh;
+	mesh.chunkPos = cpos;
+	mesh.opaqueIndexCount = static_cast<uint32_t>(solid.indices.size());
+	mesh.waterIndexCount = static_cast<uint32_t>(water.indices.size());
 
-        const auto &bd = BlockDatabase::Get(type);
-        // Les textures sont déjà colorées : la couleur de vertex est un
-        // multiplicateur neutre, sauf la teinte de biome ci-dessous.
-        glm::vec3 sideColor(1.0f);
-        glm::vec3 topColor(1.0f);
-        glm::vec3 botColor(1.0f);
+	uint32_t waterBase = static_cast<uint32_t>(solid.vertices.size());
+	mesh.vertices = std::move(solid.vertices);
+	mesh.vertices.insert(mesh.vertices.end(), water.vertices.begin(),
+						 water.vertices.end());
+	mesh.indices = std::move(solid.indices);
+	mesh.indices.reserve(mesh.indices.size() + water.indices.size());
+	for(uint32_t i : water.indices)
+		mesh.indices.push_back(i + waterBase);
 
-        // Coloration dynamique basée sur le Biome (Température et Humidité)
-        if (world != nullptr && (type == BlockType::Grass || type == BlockType::Leaves)) {
-            float wx = static_cast<float>(chunk.getChunkPos().x * CHUNK_SIZE_X + x);
-            float wz = static_cast<float>(chunk.getChunkPos().y * CHUNK_SIZE_Z + z);
-            float temp = world->getBiomeManager().getTemperature(wx, wz);
-            float hum = world->getBiomeManager().getHumidity(wx, wz);
-
-            glm::vec3 tint(1.0f);
-            
-            // Plus chaud -> Herbe plus jaune/asséchée
-            tint.r += temp * 0.3f;
-            tint.g += temp * 0.1f;
-            tint.b -= temp * 0.4f;
-            
-            // Plus humide -> Herbe plus verte foncée/luxuriante
-            tint.r -= hum * 0.3f;
-            tint.g += hum * 0.4f;
-            tint.b -= hum * 0.1f;
-            
-            // Normaliser (pas de sur-exposition) puis adoucir : la texture
-            // porte déjà la couleur de base, on ne fait que la nuancer.
-            tint = glm::max(tint, glm::vec3(0.0f));
-            float maxC = glm::max(tint.r, glm::max(tint.g, tint.b));
-            if (maxC > 0.0f) tint /= maxC;
-            tint = glm::mix(glm::vec3(1.0f), tint, 0.5f);
-
-            topColor *= tint;
-            if (type == BlockType::Leaves) {
-                sideColor *= tint;
-                botColor *= tint;
-            }
-        }
-
-        int layerFront = bd.texLayerFront;
-        int layerBack = bd.texLayerBack;
-        int layerTop = bd.texLayerTop;
-        int layerBot = bd.texLayerBottom;
-        int layerRight = bd.texLayerRight;
-        int layerLeft = bd.texLayerLeft;
-
-        // Une face est visible si le voisin est de l'air, ou un bloc
-        // transparent d'un autre type (ex. le fond marin sous l'eau).
-        auto exposed = [&](BlockType neighbor) {
-          return neighbor == BlockType::Air
-                 || (neighbor != type && BlockDatabase::IsTransparent(neighbor));
-        };
-
-        float fType = static_cast<float>(type);
-        if (exposed(getBlock(x, y, z + 1)))
-          addFace(x, y, z, 0, sideColor, layerFront, fType);
-        if (exposed(getBlock(x, y, z - 1)))
-          addFace(x, y, z, 1, sideColor, layerBack, fType);
-        if (exposed(getBlock(x, y + 1, z))) {
-          addFace(x, y, z, 2, topColor, layerTop, fType);
-          // Surface de l'eau : aussi visible depuis le dessous
-          if (type == BlockType::Water && y + 1 < CHUNK_SIZE_Y)
-            addFace(x, y + 1, z, 3, topColor, layerTop, fType);
-        }
-        if (exposed(getBlock(x, y - 1, z)))
-          addFace(x, y, z, 3, botColor, layerBot, fType);
-        if (exposed(getBlock(x + 1, y, z)))
-          addFace(x, y, z, 4, sideColor, layerRight, fType);
-        if (exposed(getBlock(x - 1, y, z)))
-          addFace(x, y, z, 5, sideColor, layerLeft, fType);
-      }
-    }
-  }
-
-  return mesh;
+	if(!mesh.vertices.empty())
+		{
+			mesh.minY = mesh.maxY = mesh.vertices[0].pos.y;
+			for(const Vertex &v : mesh.vertices)
+				{
+					mesh.minY = std::min(mesh.minY, v.pos.y);
+					mesh.maxY = std::max(mesh.maxY, v.pos.y);
+				}
+		}
+	return mesh;
 }

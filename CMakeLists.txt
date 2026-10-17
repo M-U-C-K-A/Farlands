@@ -84,6 +84,19 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
 )
 
+# ── Outil de développement : aperçu du générateur de terrain ────
+# cmake --build build --target terrain_preview && ./build/terrain_preview map.png
+add_executable(terrain_preview EXCLUDE_FROM_ALL
+    tools/terrain_preview.cpp
+    src/world/terrain_generator.cpp
+    src/world/biome.cpp
+    src/world/noise.cpp
+    src/world/chunk.cpp
+    src/world/block.cpp
+)
+target_include_directories(terrain_preview PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/external)
+target_link_libraries(terrain_preview PRIVATE glm::glm)
+
 # macOS / MoltenVK specifics
 if(APPLE)
     target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_MACOS_MVK)

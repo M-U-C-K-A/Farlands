@@ -24,7 +24,8 @@ class ChunkSerializer
 
 	// Magic number pour identifier le format de fichier
 	static constexpr uint32_t MAGIC = 0x464C4348; // "FLCH" (FarLands CHunk)
-	// v2 : génération de terrain corrigée (biomes cohérents avec la hauteur).
-	// Les chunks d'une version antérieure sont régénérés.
-	static constexpr uint32_t VERSION = 2;
+	// v3 : nouveau générateur (montagnes, arbres, végétation). Seuls les
+	// chunks modifiés par le joueur sont sauvegardés ; les chunks d'une
+	// version antérieure sont régénérés.
+	static constexpr uint32_t VERSION = 3;
 };
