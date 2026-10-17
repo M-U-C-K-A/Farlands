@@ -11,6 +11,9 @@
 #include <glm/glm.hpp>
 #include <string>
 
+/// Niveau de la mer (l'eau remplit les colonnes plus basses)
+constexpr int SEA_LEVEL = 30;
+
 // ── Types de biomes ─────────────────────────────────────────────
 enum class BiomeType : uint8_t
 {

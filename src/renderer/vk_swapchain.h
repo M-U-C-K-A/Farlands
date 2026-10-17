@@ -24,6 +24,9 @@ class VkSwapchain
 		return static_cast<uint32_t>(m_images.size());
 	}
 
+	VkImage getImage(uint32_t index) const { return m_images[index]; }
+	bool supportsTransferSrc() const { return m_supportsTransferSrc; }
+
 	// Depth resources
 	VkImageView getDepthImageView() const { return m_depthImageView; }
 
@@ -32,6 +35,7 @@ class VkSwapchain
 	std::vector<VkImage> m_images;
 	VkFormat m_imageFormat;
 	VkExtent2D m_extent;
+	bool m_supportsTransferSrc = false;
 	std::vector<VkImageView> m_imageViews;
 	std::vector<VkFramebuffer> m_framebuffers;
 

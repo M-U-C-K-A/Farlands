@@ -7,6 +7,9 @@
 
 #include <GLFW/glfw3.h>
 
+#include <climits>
+#include <string>
+
 #include "player/player.h"
 #include "renderer/camera.h"
 #include "renderer/renderer.h"
@@ -22,6 +25,9 @@ class Application
 	void initWindow();
 	void mainLoop();
 	void cleanup();
+
+	void setCursorCaptured(bool captured);
+	std::string makeScreenshotPath() const;
 
 	static void
 	framebufferResizeCallback(GLFWwindow *window, int width, int height);
@@ -40,7 +46,9 @@ class Application
 	double m_lastMouseX = 0.0;
 	double m_lastMouseY = 0.0;
 	bool m_cursorCaptured = false;
-	bool m_menuWasActive = false;
+	bool m_menuWasActive = true; // le menu est actif au démarrage
+
+	std::string m_dataDir = ".farlands";
 
 	// Monde infini
 	int m_lastPlayerChunkX = INT_MIN;

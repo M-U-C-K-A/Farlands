@@ -18,6 +18,7 @@
 
 #include "imgui.h"
 
+#include <string>
 #include <vector>
 
 /// Orchestrateur de rendu Vulkan.
@@ -36,6 +37,8 @@ class Renderer
 	// Transfère un nouveau mesh de données vers les vertex/index buffers en GPU
 	void updateBuffers(const std::vector<Vertex> &vertices,
 					   const std::vector<uint32_t> &indices);
+	// Demande une capture d'écran PNG de la prochaine frame présentée
+	void requestScreenshot(const std::string &path);
 	// Détruit et libère l'ensembes des outils et contextes Vulkan créés
 	void cleanup();
 	// Fonction bloquante, attend que le GPU termine son exécution courante
@@ -61,6 +64,8 @@ class Renderer
 
 	std::vector<VkCommandBuffer> m_commandBuffers;
 	std::vector<VkSemaphore> m_imageAvailableSemaphores;
+	// Un sémaphore "render finished" par image du swapchain (et non par
+	// frame in flight) : la présentation peut encore l'utiliser sinon.
 	std::vector<VkSemaphore> m_renderFinishedSemaphores;
 	std::vector<VkFence> m_inFlightFences;
 	uint32_t m_currentFrame = 0;
@@ -70,14 +75,28 @@ class Renderer
 	VkDescriptorSet m_panoramaTextureId = VK_NULL_HANDLE;
 	VkDescriptorSet m_logoTextureId = VK_NULL_HANDLE;
 
+	// Capture d'écran en attente
+	std::string m_screenshotPath;
+	VkBuffer m_screenshotBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory m_screenshotMemory = VK_NULL_HANDLE;
+
 	// Prépare les command buffers nécessaires selon le nombre d'images de la
 	// swapchain
 	void createCommandBuffers();
 	// Crée les objets de synchronisation Vulkan (sémaphores, fences) utilent
 	// au timing
 	void createSyncObjects();
+	// (Re)crée les sémaphores "render finished" (un par image du swapchain)
+	void createRenderFinishedSemaphores();
+	void destroyRenderFinishedSemaphores();
+	// Gère la recréation du swapchain (resize, out-of-date)
+	void recreateSwapchain();
 	// Initialise ImGui avec le backend Vulkan et le render-pass du swapchain
 	void initImGui();
+	// Copie l'image du swapchain vers un buffer CPU (capture d'écran)
+	void recordScreenshotCopy(VkCommandBuffer cmd, uint32_t imageIndex);
+	// Écrit le buffer de capture dans un fichier PNG
+	void saveScreenshot();
 	// Écrit les instructions de rendu dans un vkCommandBuffer donné (bind
 	// pipeline, buffers, draw command)
 	void recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex,

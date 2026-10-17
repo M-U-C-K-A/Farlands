@@ -24,7 +24,8 @@
             "transparent": false,
             "solid": true,
             "hardness": 1.5,
-            "texture": "textures/block/dirt.png",
+            "texture": "textures/block/dirt_side.png",
+            "textureTop": "textures/block/dirt_top.png",
             "color": [
                 0.53,
                 0.38,
@@ -54,7 +55,7 @@
                 0.31
             ],
             "textureTop": "textures/block/grass_block_top.png",
-            "textureBottom": "textures/block/dirt.png"
+            "textureBottom": "textures/block/dirt_side.png"
         },
         {
             "id": 3,

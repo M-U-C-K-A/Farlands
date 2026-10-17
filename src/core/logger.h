@@ -33,8 +33,14 @@ inline std::string logger_get_time() {
     std::cout << "[" << ANSI_COLOR_WHITE << logger_get_time() << ANSI_COLOR_RESET << "] [" << color << level << ANSI_COLOR_RESET << "] " << msg << std::endl
 
 #define LOG_INFO(msg)    LOG_INTERNAL("INFO",    ANSI_COLOR_CYAN,    msg)
+#ifdef NDEBUG
+// Release : DEBUG/TRACE (une ligne par chunk) désactivés
+#define LOG_DEBUG(msg)   ((void)0)
+#define LOG_TRACE(msg)   ((void)0)
+#else
 #define LOG_DEBUG(msg)   LOG_INTERNAL("DEBUG",   ANSI_COLOR_BLUE,    msg)
 #define LOG_TRACE(msg)   LOG_INTERNAL("TRACE",   ANSI_COLOR_MAGENTA, msg)
+#endif
 #define LOG_SUCCESS(msg) LOG_INTERNAL("SUCCESS", ANSI_COLOR_BRIGHT_GREEN, msg)
 #define LOG_NOTE(msg)    LOG_INTERNAL("NOTE",    ANSI_COLOR_YELLOW,  msg)
 #define LOG_WARNING(msg) LOG_INTERNAL("WARNING", ANSI_COLOR_YELLOW,  msg)

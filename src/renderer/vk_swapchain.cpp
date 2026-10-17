@@ -67,6 +67,12 @@ void VkSwapchain::createSwapChain(VkContext &ctx, GLFWwindow *window)
 	ci.imageExtent = extent;
 	ci.imageArrayLayers = 1;
 	ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	// Permet la copie des images (captures d'écran F2) si supporté
+	m_supportsTransferSrc = (support.capabilities.supportedUsageFlags
+							 & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+							!= 0;
+	if(m_supportsTransferSrc)
+		ci.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 	auto indices = ctx.findQueueFamilies(ctx.getPhysicalDevice());
 	uint32_t queueFamilyIndices[]

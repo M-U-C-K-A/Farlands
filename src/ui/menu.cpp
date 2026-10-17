@@ -7,8 +7,10 @@ bool MainMenu::draw(GLFWwindow *window, ImTextureID bg_texture, ImTextureID logo
 	if(!m_active)
 		return false;
 
-	int w, h;
-	glfwGetFramebufferSize(window, &w, &h);
+	// Coordonnées ImGui (taille fenêtre, pas framebuffer : Retina)
+	const ImVec2 display = ImGui::GetIO().DisplaySize;
+	const float w = display.x;
+	const float h = display.y;
 
 	ImGui::SetNextWindowPos(ImVec2(0, 0));
 	ImGui::SetNextWindowSize(

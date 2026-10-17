@@ -2,6 +2,7 @@
 
 #include "vk_context.h"
 #include <string>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 class VkTexture {
@@ -19,7 +20,7 @@ private:
     VkImageView m_imageView = VK_NULL_HANDLE;
     VkSampler m_sampler = VK_NULL_HANDLE;
 
-    void createImage(VkContext& ctx, uint32_t width, uint32_t height, uint32_t layerCount, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-    void transitionImageLayout(VkContext& ctx, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount);
-    void copyBufferToImage(VkContext& ctx, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount);
+    void createImage(VkContext& ctx, uint32_t width, uint32_t height, uint32_t layerCount, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t mipLevels);
+    void transitionImageLayout(VkContext& ctx, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount, uint32_t mipLevels);
+    void copyBufferToImage(VkContext& ctx, VkBuffer buffer, VkImage image, const std::vector<VkBufferImageCopy>& regions);
 };

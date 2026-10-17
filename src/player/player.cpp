@@ -27,7 +27,8 @@ void Player::handleInput(GLFWwindow *window, float deltaTime,
 	glm::vec3 right
 	  = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
 
-	float speed = MOVE_SPEED;
+	m_inWater = isInWater(world);
+	float speed = m_inWater ? MOVE_SPEED * WATER_SPEED_SCALE : MOVE_SPEED;
 	glm::vec3 moveDir(0.0f);
 
 	// WASD — déplacement horizontal
@@ -60,9 +61,16 @@ void Player::handleInput(GLFWwindow *window, float deltaTime,
 	if(!collidesAt(world, newPosZ))
 		m_position.z = newPosZ.z;
 
-	// Saut — seulement si au sol
-	if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && m_onGround)
+	bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+	if(m_inWater)
 		{
+			// Nage : Espace fait remonter
+			if(space)
+				m_velocity.y = SWIM_VELOCITY;
+		}
+	else if(space && m_onGround)
+		{
+			// Saut — seulement si au sol
 			m_velocity.y = JUMP_VELOCITY;
 			m_onGround = false;
 		}
@@ -79,51 +87,89 @@ void Player::handleMouseMove(double xOffset, double yOffset)
 // ── Mise à jour physique ────────────────────────────────────────
 void Player::update(float deltaTime, const World &world)
 {
-	// Appliquer la gravité
-	m_velocity.y += GRAVITY * deltaTime;
+	m_inWater = isInWater(world);
 
-	// Déplacement vertical
+	// Appliquer la gravité (réduite et freinée dans l'eau)
+	if(m_inWater)
+		{
+			m_velocity.y += GRAVITY * WATER_GRAVITY_SCALE * deltaTime;
+			m_velocity.y *= std::max(0.0f, 1.0f - 2.0f * deltaTime);
+		}
+	else
+		{
+			m_velocity.y += GRAVITY * deltaTime;
+		}
+	m_velocity.y = std::max(m_velocity.y, TERMINAL_VELOCITY);
+
+	// Sous-pas pour ne jamais traverser un bloc à grande vitesse
 	float dy = m_velocity.y * deltaTime;
+	int steps = static_cast<int>(std::ceil(std::abs(dy) / 0.45f));
+	steps = std::max(steps, 1);
+	m_onGround = false;
+	for(int i = 0; i < steps && m_velocity.y != 0.0f; ++i)
+		moveVertical(dy / static_cast<float>(steps), world);
+}
 
-	// ── Collision vers le bas ────────────────────────────────
+void Player::moveVertical(float dy, const World &world)
+{
+	glm::vec3 newPos = m_position;
+	newPos.y += dy;
+	if(!collidesAt(world, newPos))
+		{
+			m_position.y = newPos.y;
+			return;
+		}
+
 	if(dy < 0.0f)
 		{
-			glm::vec3 newPos = m_position;
-			newPos.y += dy;
-			if(collidesAt(world, newPos))
-				{
-					// Trouver la surface exacte
-					// On remonte jusqu'à ne plus collisionner
-					float step = 0.01f;
-					while(collidesAt(world, m_position)
-						  && m_position.y < m_position.y + 5.0f)
-						{
-							m_position.y += step;
-						}
-					m_velocity.y = 0.0f;
-					m_onGround = true;
-				}
-			else
-				{
-					m_position.y = newPos.y;
-					m_onGround = false;
-				}
+			// Atterrissage : se poser exactement sur le dessus du bloc
+			float top = std::floor(newPos.y) + 1.0f;
+			glm::vec3 snapped = m_position;
+			snapped.y = top;
+			if(top <= m_position.y && !collidesAt(world, snapped))
+				m_position.y = top;
+			m_onGround = true;
 		}
-	// ── Collision vers le haut (tête) ───────────────────────
-	else if(dy > 0.0f)
+	else
 		{
-			glm::vec3 newPos = m_position;
-			newPos.y += dy;
-			if(collidesAt(world, newPos))
+			// Tête contre un plafond : se coller sous le bloc
+			float ceiling = std::floor(newPos.y + PLAYER_HEIGHT);
+			glm::vec3 snapped = m_position;
+			snapped.y = ceiling - PLAYER_HEIGHT - 0.001f;
+			if(snapped.y >= m_position.y && !collidesAt(world, snapped))
+				m_position.y = snapped.y;
+		}
+	m_velocity.y = 0.0f;
+}
+
+// ── Spawn ───────────────────────────────────────────────────────
+void Player::spawnOnSurface(const World &world)
+{
+	int bx = static_cast<int>(std::floor(m_position.x));
+	int bz = static_cast<int>(std::floor(m_position.z));
+	for(int y = CHUNK_SIZE_Y - 1; y >= 0; --y)
+		{
+			if(world.getBlockAt(bx, y, bz) != BlockType::Air)
 				{
-					m_velocity.y = 0.0f; // Bloquer en haut
-				}
-			else
-				{
-					m_position.y = newPos.y;
-					m_onGround = false;
+					m_position.y = static_cast<float>(y + 1);
+					break;
 				}
 		}
+	m_velocity = glm::vec3(0.0f);
+	// Sécurité : ne jamais apparaître dans un bloc solide
+	while(collidesAt(world, m_position) && m_position.y < CHUNK_SIZE_Y)
+		m_position.y += 1.0f;
+}
+
+bool Player::isInWater(const World &world) const
+{
+	// Teste au niveau des pieds et à mi-hauteur
+	int bx = static_cast<int>(std::floor(m_position.x));
+	int bz = static_cast<int>(std::floor(m_position.z));
+	int feet = static_cast<int>(std::floor(m_position.y + 0.1f));
+	int waist = static_cast<int>(std::floor(m_position.y + 0.9f));
+	return world.getBlockAt(bx, feet, bz) == BlockType::Water
+		   || world.getBlockAt(bx, waist, bz) == BlockType::Water;
 }
 
 // ── Collision AABB ──────────────────────────────────────────────
@@ -157,7 +203,7 @@ bool Player::collidesAt(const World &world, const glm::vec3 &pos) const
 					for(int bz = bMinZ; bz <= bMaxZ; ++bz)
 						{
 							BlockType block = world.getBlockAt(bx, by, bz);
-							if(block != BlockType::Air)
+							if(BlockDatabase::IsSolid(block))
 								{
 									// Le bloc occupe [bx, bx+1] × [by, by+1]
 									// × [bz, bz+1] Vérifier le chevauchement

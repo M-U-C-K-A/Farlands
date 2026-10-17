@@ -8,6 +8,8 @@ layout(binding = 0) uniform UniformBufferObject {
     float time;
     mat4 invView;
     mat4 invProj;
+    vec2 fogRange;
+    vec4 fogColor; // rgb ; a = 1 sous l'eau
 } ubo;
 
 layout(location = 0) in vec3 vViewDir;
@@ -22,9 +24,8 @@ float hash(vec3 p) {
 void main() {
     vec3 dir = normalize(vViewDir);
     
-    // ── Base Sky Color ──
-    vec3 skyColor = vec3(0.40, 0.65, 1.0);
-    vec3 color = skyColor;
+    // ── Base Sky Color (= couleur du brouillard hors de l'eau) ──
+    vec3 color = ubo.fogColor.rgb;
 
     // ── Fixed Sun (matches lightDir in shader.frag) ──
     vec3 sunDir = normalize(vec3(0.4, 1.0, 0.3));
@@ -36,6 +37,9 @@ void main() {
     } else if (sunDot > 0.985) { // Sun aura/bloom
         color += vec3(1.0, 0.8, 0.3) * pow((sunDot - 0.985) / 0.014, 4.0) * 0.5;
     }
+
+    // Sous l'eau : pas de ciel ni de soleil, uniquement la couleur de l'eau
+    color = mix(color, ubo.fogColor.rgb, ubo.fogColor.a);
 
     outColor = vec4(color, 1.0);
 }

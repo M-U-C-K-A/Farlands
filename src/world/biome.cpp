@@ -97,22 +97,20 @@ BiomeType BiomeManager::getBiomeAt(float wx, float wz) const
 	float temp = getTemperature(wx, wz);
 	float humidity = getHumidity(wx, wz);
 
-	// Calcul de la hauteur brute pour détecter océan/plage/montagne
-	float continentality = m_heightNoise.octaveNoise(
-	  wx * 0.003f, wz * 0.003f, 5, 2.0f, 0.45f);
+	// Océan / plage / montagne dépendent de la hauteur réelle du terrain
+	// (sinon : sable au sommet des collines et herbe sous l'eau).
+	int height = getHeightAt(wx, wz);
 
-	// Océan : zones très basses
-	if(continentality < -0.3f)
+	// Océan : terrain sous le niveau de la mer
+	if(height < SEA_LEVEL)
 		return BiomeType::Ocean;
 
-	// Plage : transition terre/océan
-	if(continentality < -0.15f)
+	// Plage : bande juste au-dessus de l'eau
+	if(height <= SEA_LEVEL + 2)
 		return BiomeType::Beach;
 
-	// Montagnes : zones très hautes en continentality + crêtes
-	float mountain = m_mountainNoise.octaveNoise(
-	  wx * 0.005f, wz * 0.005f, 4, 2.0f, 0.5f);
-	if(continentality > 0.35f && mountain > 0.1f)
+	// Montagnes : terrain très élevé
+	if(height > 85)
 		return BiomeType::Mountains;
 
 	// Biomes basés sur température/humidité

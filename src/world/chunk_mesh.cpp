@@ -35,6 +35,9 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
     } else if (world) {
       const Chunk* neighbor = world->getChunk(cx, cz);
       if (neighbor) return neighbor->getBlock(x, y, z);
+      // Voisin non chargé : considéré plein pour ne pas générer de "mur"
+      // au bord du monde chargé (le chunk est remaillé quand il arrive).
+      return BlockType::Stone;
     }
     return BlockType::Air;
   };
@@ -163,9 +166,11 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
           continue;
 
         const auto &bd = BlockDatabase::Get(type);
-        glm::vec3 sideColor = bd.color;
-        glm::vec3 topColor = bd.colorTop;
-        glm::vec3 botColor = (type == BlockType::Grass) ? BlockDatabase::Get(BlockType::Dirt).color : sideColor;
+        // Les textures sont déjà colorées : la couleur de vertex est un
+        // multiplicateur neutre, sauf la teinte de biome ci-dessous.
+        glm::vec3 sideColor(1.0f);
+        glm::vec3 topColor(1.0f);
+        glm::vec3 botColor(1.0f);
 
         // Coloration dynamique basée sur le Biome (Température et Humidité)
         if (world != nullptr && (type == BlockType::Grass || type == BlockType::Leaves)) {
@@ -186,8 +191,12 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
             tint.g += hum * 0.4f;
             tint.b -= hum * 0.1f;
             
-            // Sécurité pour garder des couleurs viables
-            tint = glm::clamp(tint, 0.3f, 1.5f);
+            // Normaliser (pas de sur-exposition) puis adoucir : la texture
+            // porte déjà la couleur de base, on ne fait que la nuancer.
+            tint = glm::max(tint, glm::vec3(0.0f));
+            float maxC = glm::max(tint.r, glm::max(tint.g, tint.b));
+            if (maxC > 0.0f) tint /= maxC;
+            tint = glm::mix(glm::vec3(1.0f), tint, 0.5f);
 
             topColor *= tint;
             if (type == BlockType::Leaves) {
@@ -203,18 +212,29 @@ ChunkMesh generateChunkMesh(const Chunk &chunk, const World *world) {
         int layerRight = bd.texLayerRight;
         int layerLeft = bd.texLayerLeft;
 
+        // Une face est visible si le voisin est de l'air, ou un bloc
+        // transparent d'un autre type (ex. le fond marin sous l'eau).
+        auto exposed = [&](BlockType neighbor) {
+          return neighbor == BlockType::Air
+                 || (neighbor != type && BlockDatabase::IsTransparent(neighbor));
+        };
+
         float fType = static_cast<float>(type);
-        if (getBlock(x, y, z + 1) == BlockType::Air)
+        if (exposed(getBlock(x, y, z + 1)))
           addFace(x, y, z, 0, sideColor, layerFront, fType);
-        if (getBlock(x, y, z - 1) == BlockType::Air)
+        if (exposed(getBlock(x, y, z - 1)))
           addFace(x, y, z, 1, sideColor, layerBack, fType);
-        if (getBlock(x, y + 1, z) == BlockType::Air)
+        if (exposed(getBlock(x, y + 1, z))) {
           addFace(x, y, z, 2, topColor, layerTop, fType);
-        if (getBlock(x, y - 1, z) == BlockType::Air)
+          // Surface de l'eau : aussi visible depuis le dessous
+          if (type == BlockType::Water && y + 1 < CHUNK_SIZE_Y)
+            addFace(x, y + 1, z, 3, topColor, layerTop, fType);
+        }
+        if (exposed(getBlock(x, y - 1, z)))
           addFace(x, y, z, 3, botColor, layerBot, fType);
-        if (getBlock(x + 1, y, z) == BlockType::Air)
+        if (exposed(getBlock(x + 1, y, z)))
           addFace(x, y, z, 4, sideColor, layerRight, fType);
-        if (getBlock(x - 1, y, z) == BlockType::Air)
+        if (exposed(getBlock(x - 1, y, z)))
           addFace(x, y, z, 5, sideColor, layerLeft, fType);
       }
     }

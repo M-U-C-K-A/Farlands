@@ -2,6 +2,7 @@
 #include "block.h"
 #include "chunk_serializer.h"
 
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include "core/logger.h"
@@ -86,11 +87,10 @@ void World::generateTerrain(Chunk &chunk)
 						}
 
 					// Eau dans les océans et lacs (remplir jusqu'au
-					// niveau de la mer = 30)
-					int seaLevel = 30;
-					if(height < seaLevel)
+					// niveau de la mer)
+					if(height < SEA_LEVEL)
 						{
-							for(int y = height; y < seaLevel; ++y)
+							for(int y = height; y < SEA_LEVEL; ++y)
 								{
 									chunk.setBlock(x, y, z, BlockType::Water);
 								}
@@ -182,6 +182,7 @@ bool World::updateAroundPlayer(int playerChunkX, int playerChunkZ,
 void World::buildWorldMesh(std::vector<Vertex> &outVertices,
 						   std::vector<uint32_t> &outIndices)
 {
+	auto start = std::chrono::steady_clock::now();
 	outVertices.clear();
 	outIndices.clear();
 
@@ -215,7 +216,10 @@ void World::buildWorldMesh(std::vector<Vertex> &outVertices,
 				}
 		}
 
+	double ms = std::chrono::duration<double, std::milli>(
+				  std::chrono::steady_clock::now() - start)
+				  .count();
 	LOG_INFO("World mesh updated: " << outVertices.size()
 			 << " vertices, " << outIndices.size() << " indices ("
-			 << m_chunks.size() << " chunks)");
+			 << m_chunks.size() << " chunks) in " << ms << " ms");
 }

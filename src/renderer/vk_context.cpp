@@ -4,6 +4,7 @@
 #include <cstring>
 #include "core/logger.h"
 #include <set>
+#include <string>
 #include <stdexcept>
 #include <vector>
 
@@ -41,7 +42,35 @@ static const bool enableValidationLayers = checkValidationLayerSupport();
 #endif
 
 static const std::vector<const char *> deviceExtensions
-  = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"};
+  = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+// MoltenVK (macOS) exposes this extension; when present it MUST be enabled.
+static const char *kPortabilitySubsetExt = "VK_KHR_portability_subset";
+
+static bool hasInstanceExtension(const char *name)
+{
+	uint32_t count = 0;
+	vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+	std::vector<VkExtensionProperties> exts(count);
+	vkEnumerateInstanceExtensionProperties(nullptr, &count, exts.data());
+	for(auto &e : exts)
+		if(strcmp(e.extensionName, name) == 0)
+			return true;
+	return false;
+}
+
+static bool hasDeviceExtension(VkPhysicalDevice device, const char *name)
+{
+	uint32_t count = 0;
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
+	std::vector<VkExtensionProperties> exts(count);
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &count,
+										 exts.data());
+	for(auto &e : exts)
+		if(strcmp(e.extensionName, name) == 0)
+			return true;
+	return false;
+}
 
 // ── Debug Callback ──────────────────────────────────────────────
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -89,17 +118,33 @@ void VkContext::createInstance()
 
 	uint32_t glfwExtCount = 0;
 	const char **glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+	if(!glfwExts)
+		throw std::runtime_error(
+		  "GLFW: Vulkan is not available (missing loader/ICD?)");
 	std::vector<const char *> extensions(glfwExts, glfwExts + glfwExtCount);
-	extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+
+	VkInstanceCreateInfo createInfo{};
+
+	// Portability (MoltenVK) : only when the loader exposes it
+	if(hasInstanceExtension(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME))
+		{
+			extensions.push_back(
+			  VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+			createInfo.flags
+			  |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+			// Required by VK_KHR_portability_subset on a Vulkan 1.0 instance
+			if(hasInstanceExtension(
+				 VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
+				extensions.push_back(
+				  VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+		}
 	if(enableValidationLayers)
 		{
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		}
 
-	VkInstanceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	createInfo.pApplicationInfo = &appInfo;
-	createInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 	createInfo.enabledExtensionCount
 	  = static_cast<uint32_t>(extensions.size());
 	createInfo.ppEnabledExtensionNames = extensions.data();
@@ -110,8 +155,10 @@ void VkContext::createInstance()
 			createInfo.ppEnabledLayerNames = validationLayers.data();
 		}
 
-	if(vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create Vulkan instance");
+	VkResult res = vkCreateInstance(&createInfo, nullptr, &m_instance);
+	if(res != VK_SUCCESS)
+		throw std::runtime_error("Failed to create Vulkan instance (VkResult "
+								 + std::to_string(res) + ")");
 }
 
 // ── Debug Messenger ─────────────────────────────────────────────
@@ -260,9 +307,14 @@ void VkContext::createLogicalDevice()
 	ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	ci.queueCreateInfoCount = static_cast<uint32_t>(queueInfos.size());
 	ci.pQueueCreateInfos = queueInfos.data();
+	std::vector<const char *> extensions(deviceExtensions.begin(),
+										 deviceExtensions.end());
+	if(hasDeviceExtension(m_physicalDevice, kPortabilitySubsetExt))
+		extensions.push_back(kPortabilitySubsetExt);
+
 	ci.pEnabledFeatures = &features;
-	ci.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-	ci.ppEnabledExtensionNames = deviceExtensions.data();
+	ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+	ci.ppEnabledExtensionNames = extensions.data();
 	if(vkCreateDevice(m_physicalDevice, &ci, nullptr, &m_device) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create logical device");
 	vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0,

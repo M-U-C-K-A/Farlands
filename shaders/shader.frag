@@ -13,6 +13,10 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 proj;
     vec3 viewPos;
     float time;
+    mat4 invView;
+    mat4 invProj;
+    vec2 fogRange; // (début, fin) — suit la distance de rendu
+    vec4 fogColor; // rgb ; a = 1 sous l'eau
 } ubo;
 
 layout(binding = 1) uniform sampler2DArray texSampler;
@@ -42,14 +46,12 @@ void main() {
 
     // ── Brouillard (fog) ───────────────────────────────────
     float dist = distance(fragWorldPos, ubo.viewPos);
-    float fogStart = 60.0;
-    float fogEnd = 120.0;
+    float fogStart = ubo.fogRange.x;
+    float fogEnd = ubo.fogRange.y;
     float fogFactor = clamp((dist - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
 
     // ── Couleur du ciel / brouillard ─────
-    vec3 skyColor = vec3(0.40, 0.65, 1.0);
-
-    vec3 finalColor = mix(litColor, skyColor, fogFactor);
+    vec3 finalColor = mix(litColor, ubo.fogColor.rgb, fogFactor);
 
     outColor = vec4(finalColor, texColor.a);
 }

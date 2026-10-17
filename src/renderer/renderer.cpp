@@ -1,10 +1,23 @@
 #include "renderer.h"
 
 #include <array>
+#include <cstring>
+#include <filesystem>
 #include <stdexcept>
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "../world/block.h"
+#include "core/logger.h"
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../core/stb_image_write.h"
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 // ── Init ────────────────────────────────────────────────────────
 void Renderer::init(GLFWwindow *window)
@@ -118,7 +131,6 @@ void Renderer::createCommandBuffers()
 void Renderer::createSyncObjects()
 {
 	m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 	VkSemaphoreCreateInfo si{};
 	si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -130,14 +142,38 @@ void Renderer::createSyncObjects()
 			if(vkCreateSemaphore(m_context.getDevice(), &si, nullptr,
 								 &m_imageAvailableSemaphores[i])
 				 != VK_SUCCESS
-			   || vkCreateSemaphore(m_context.getDevice(), &si, nullptr,
-									&m_renderFinishedSemaphores[i])
-					!= VK_SUCCESS
 			   || vkCreateFence(m_context.getDevice(), &fi, nullptr,
 								&m_inFlightFences[i])
 					!= VK_SUCCESS)
 				throw std::runtime_error("Failed to create sync objects");
 		}
+	createRenderFinishedSemaphores();
+}
+
+void Renderer::createRenderFinishedSemaphores()
+{
+	VkSemaphoreCreateInfo si{};
+	si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	m_renderFinishedSemaphores.resize(m_swapchain.getImageCount());
+	for(auto &sem : m_renderFinishedSemaphores)
+		if(vkCreateSemaphore(m_context.getDevice(), &si, nullptr, &sem)
+		   != VK_SUCCESS)
+			throw std::runtime_error("Failed to create sync objects");
+}
+
+void Renderer::destroyRenderFinishedSemaphores()
+{
+	for(auto sem : m_renderFinishedSemaphores)
+		vkDestroySemaphore(m_context.getDevice(), sem, nullptr);
+	m_renderFinishedSemaphores.clear();
+}
+
+void Renderer::recreateSwapchain()
+{
+	m_swapchain.recreate(m_context, m_window, m_pipeline.getRenderPass());
+	// Le nombre d'images peut changer : un sémaphore par image
+	destroyRenderFinishedSemaphores();
+	createRenderFinishedSemaphores();
 }
 
 // ── Record Command Buffer ───────────────────────────────────────
@@ -207,6 +243,10 @@ void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex,
 	ImGui_ImplVulkan_RenderDrawData(draw_data, cmd);
 
 	vkCmdEndRenderPass(cmd);
+
+	if(!m_screenshotPath.empty())
+		recordScreenshotCopy(cmd, imageIndex);
+
 	if(vkEndCommandBuffer(cmd) != VK_SUCCESS)
 		throw std::runtime_error("Failed to record command buffer");
 }
@@ -235,8 +275,7 @@ void Renderer::drawFrame(const UniformBufferObject &ubo, bool inMenu)
 	  m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
 	if(result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
-			m_swapchain.recreate(m_context, m_window,
-								 m_pipeline.getRenderPass());
+			recreateSwapchain();
 			return;
 		}
 	if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -259,13 +298,21 @@ void Renderer::drawFrame(const UniformBufferObject &ubo, bool inMenu)
 	si.pWaitDstStageMask = waitStages;
 	si.commandBufferCount = 1;
 	si.pCommandBuffers = &m_commandBuffers[m_currentFrame];
-	VkSemaphore signalSems[] = {m_renderFinishedSemaphores[m_currentFrame]};
+	VkSemaphore signalSems[] = {m_renderFinishedSemaphores[imageIndex]};
 	si.signalSemaphoreCount = 1;
 	si.pSignalSemaphores = signalSems;
 	if(vkQueueSubmit(m_context.getGraphicsQueue(), 1, &si,
 					 m_inFlightFences[m_currentFrame])
 	   != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer");
+
+	if(m_screenshotBuffer != VK_NULL_HANDLE)
+		{
+			vkWaitForFences(m_context.getDevice(), 1,
+							&m_inFlightFences[m_currentFrame], VK_TRUE,
+							UINT64_MAX);
+			saveScreenshot();
+		}
 
 	VkPresentInfoKHR pi{};
 	pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -280,8 +327,7 @@ void Renderer::drawFrame(const UniformBufferObject &ubo, bool inMenu)
 	   || framebufferResized)
 		{
 			framebufferResized = false;
-			m_swapchain.recreate(m_context, m_window,
-								 m_pipeline.getRenderPass());
+			recreateSwapchain();
 		}
 	else if(result != VK_SUCCESS)
 		throw std::runtime_error("Failed to present swap chain image");
@@ -315,10 +361,9 @@ void Renderer::cleanup()
 	m_logoTexture.cleanup(m_context.getDevice());
 	m_pipeline.cleanup(m_context.getDevice());
 
+	destroyRenderFinishedSemaphores();
 	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(m_context.getDevice(),
-							   m_renderFinishedSemaphores[i], nullptr);
 			vkDestroySemaphore(m_context.getDevice(),
 							   m_imageAvailableSemaphores[i], nullptr);
 			vkDestroyFence(m_context.getDevice(), m_inFlightFences[i],
@@ -327,4 +372,113 @@ void Renderer::cleanup()
 
 	vkDestroyCommandPool(m_context.getDevice(), m_renderCommandPool, nullptr);
 	m_context.cleanup();
+}
+
+// ── Screenshot ──────────────────────────────────────────────────
+void Renderer::requestScreenshot(const std::string &path)
+{
+	if(!m_swapchain.supportsTransferSrc())
+		{
+			LOG_WARNING("Screenshots not supported by this swapchain.");
+			return;
+		}
+	m_screenshotPath = path;
+}
+
+void Renderer::recordScreenshotCopy(VkCommandBuffer cmd, uint32_t imageIndex)
+{
+	VkDevice device = m_context.getDevice();
+	VkExtent2D extent = m_swapchain.getExtent();
+	VkDeviceSize size = static_cast<VkDeviceSize>(extent.width)
+						* extent.height * 4;
+
+	// Buffer CPU de destination (détruit après l'écriture du PNG)
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = size;
+	bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	if(vkCreateBuffer(device, &bci, nullptr, &m_screenshotBuffer)
+	   != VK_SUCCESS)
+		throw std::runtime_error("Failed to create screenshot buffer");
+	VkMemoryRequirements req;
+	vkGetBufferMemoryRequirements(device, m_screenshotBuffer, &req);
+	VkMemoryAllocateInfo mai{};
+	mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	mai.allocationSize = req.size;
+	mai.memoryTypeIndex = m_context.findMemoryType(
+	  req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+							| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	if(vkAllocateMemory(device, &mai, nullptr, &m_screenshotMemory)
+	   != VK_SUCCESS)
+		throw std::runtime_error("Failed to allocate screenshot memory");
+	vkBindBufferMemory(device, m_screenshotBuffer, m_screenshotMemory, 0);
+
+	VkImage image = m_swapchain.getImage(imageIndex);
+	VkImageMemoryBarrier barrier{};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+	barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+	barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+						 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+						 nullptr, 1, &barrier);
+
+	VkBufferImageCopy region{};
+	region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	region.imageExtent = {extent.width, extent.height, 1};
+	vkCmdCopyImageToBuffer(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+						   m_screenshotBuffer, 1, &region);
+
+	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	barrier.dstAccessMask = 0;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+						 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr,
+						 0, nullptr, 1, &barrier);
+}
+
+void Renderer::saveScreenshot()
+{
+	VkDevice device = m_context.getDevice();
+	VkExtent2D extent = m_swapchain.getExtent();
+	size_t pixelCount = static_cast<size_t>(extent.width) * extent.height;
+
+	void *mapped = nullptr;
+	vkMapMemory(device, m_screenshotMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
+	std::vector<uint8_t> pixels(pixelCount * 4);
+	std::memcpy(pixels.data(), mapped, pixels.size());
+	vkUnmapMemory(device, m_screenshotMemory);
+
+	VkFormat fmt = m_swapchain.getImageFormat();
+	bool bgra = fmt == VK_FORMAT_B8G8R8A8_SRGB || fmt == VK_FORMAT_B8G8R8A8_UNORM;
+	for(size_t i = 0; i < pixelCount; ++i)
+		{
+			if(bgra)
+				std::swap(pixels[i * 4 + 0], pixels[i * 4 + 2]);
+			pixels[i * 4 + 3] = 255;
+		}
+
+	std::filesystem::path out(m_screenshotPath);
+	if(out.has_parent_path())
+		std::filesystem::create_directories(out.parent_path());
+	if(stbi_write_png(m_screenshotPath.c_str(), static_cast<int>(extent.width),
+					  static_cast<int>(extent.height), 4, pixels.data(),
+					  static_cast<int>(extent.width) * 4))
+		LOG_SUCCESS("Screenshot saved: " << m_screenshotPath);
+	else
+		LOG_ERROR("Failed to write screenshot: " << m_screenshotPath);
+
+	vkDestroyBuffer(device, m_screenshotBuffer, nullptr);
+	vkFreeMemory(device, m_screenshotMemory, nullptr);
+	m_screenshotBuffer = VK_NULL_HANDLE;
+	m_screenshotMemory = VK_NULL_HANDLE;
+	m_screenshotPath.clear();
 }

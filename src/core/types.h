@@ -79,4 +79,6 @@ struct UniformBufferObject
 	alignas(4) float time;
 	alignas(16) glm::mat4 invView;
 	alignas(16) glm::mat4 invProj;
+	alignas(8) glm::vec2 fogRange; // (début, fin) du brouillard en blocs
+	alignas(16) glm::vec4 fogColor; // rgb ; a = 1 si la caméra est sous l'eau
 };
