@@ -19,9 +19,10 @@ struct ChunkMeshData
 {
 	glm::ivec2 chunkPos{0};
 	std::vector<Vertex> vertices;
-	// Indices opaques/cutout [0, opaqueIndexCount), puis eau
+	// Indices : opaques, puis "cutout" (feuillages, plantes, vitres), puis eau
 	std::vector<uint32_t> indices;
 	uint32_t opaqueIndexCount = 0;
+	uint32_t cutoutIndexCount = 0;
 	uint32_t waterIndexCount = 0;
 	float minY = 0.0f;
 	float maxY = 0.0f;

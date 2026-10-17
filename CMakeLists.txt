@@ -61,6 +61,7 @@ set(SHADER_DIR "${CMAKE_SOURCE_DIR}/shaders")
 set(SHADER_OUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 
 file(GLOB SHADERS CONFIGURE_DEPENDS "${SHADER_DIR}/*.vert" "${SHADER_DIR}/*.frag")
+file(GLOB SHADER_INCLUDES CONFIGURE_DEPENDS "${SHADER_DIR}/*.glsl")
 file(MAKE_DIRECTORY ${SHADER_OUT_DIR})
 
 foreach(SHADER ${SHADERS})
@@ -68,8 +69,8 @@ foreach(SHADER ${SHADERS})
     set(SPV "${SHADER_OUT_DIR}/${SHADER_NAME}.spv")
     add_custom_command(
         OUTPUT ${SPV}
-        COMMAND ${GLSLC} ${SHADER} -o ${SPV}
-        DEPENDS ${SHADER}
+        COMMAND ${GLSLC} -O -I${SHADER_DIR} ${SHADER} -o ${SPV}
+        DEPENDS ${SHADER} ${SHADER_INCLUDES}
         COMMENT "Compiling shader ${SHADER_NAME}"
     )
     list(APPEND SPV_SHADERS ${SPV})

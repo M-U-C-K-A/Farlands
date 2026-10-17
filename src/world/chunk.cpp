@@ -1,10 +1,12 @@
 #include "chunk.h"
 
+#include "../core/types.h"
+
 Chunk::Chunk(int cx, int cz) : m_chunkPos(cx, cz)
 {
 	m_blocks.fill(BlockType::Air);
-	m_grassTint.fill(0xFFFFFFFFu);
-	m_foliageTint.fill(0xFFFFFFFFu);
+	m_grassTint.fill(TINT_NEUTRAL);
+	m_foliageTint.fill(TINT_NEUTRAL);
 }
 
 void Chunk::setBlock(int x, int y, int z, BlockType type)

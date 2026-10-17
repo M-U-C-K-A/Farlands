@@ -7,11 +7,11 @@
 
 #include <GLFW/glfw3.h>
 
-#include <climits>
 #include <string>
 
 #include "player/player.h"
 #include "renderer/camera.h"
+#include "renderer/render_settings.h"
 #include "renderer/renderer.h"
 #include "ui/menu.h"
 #include "world/world.h"
@@ -28,6 +28,10 @@ class Application
 
 	void setCursorCaptured(bool captured);
 	std::string makeScreenshotPath() const;
+	/// Cherche un point d'apparition avec vue (lac devant, montagnes au loin)
+	void findScenicSpawn();
+	void updateCamera(float time);
+	void drawHud(float deltaTime);
 
 	static void
 	framebufferResizeCallback(GLFWwindow *window, int width, int height);
@@ -35,10 +39,11 @@ class Application
 	cursorPosCallback(GLFWwindow *window, double xpos, double ypos);
 
 	GLFWwindow *m_window = nullptr;
+	RenderSettings m_settings;
 	Renderer m_renderer;
 	Camera m_camera;
 	MainMenu m_menu;
-	World m_world;
+	World m_world{42};
 	Player m_player;
 
 	// État souris
@@ -48,12 +53,14 @@ class Application
 	bool m_cursorCaptured = false;
 	bool m_menuWasActive = true; // le menu est actif au démarrage
 
-	std::string m_dataDir = ".farlands";
+	// Partie
+	bool m_gameStarted = false;  // le joueur a cliqué "Singleplayer"
+	bool m_spawned = false;      // le joueur a été posé sur le terrain
+	glm::vec3 m_spawnPos{0.0f};
+	float m_spawnYaw = 0.0f;
+	bool m_showDebug = false;    // overlay F3
 
-	// Monde infini
-	int m_lastPlayerChunkX = INT_MIN;
-	int m_lastPlayerChunkZ = INT_MIN;
-	static constexpr int RENDER_RADIUS = 5;
+	std::string m_dataDir = ".farlands";
 
 	static constexpr int WIDTH = 1280;
 	static constexpr int HEIGHT = 720;

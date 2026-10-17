@@ -8,6 +8,6 @@ mkdir -p "$OUT_DIR"
 
 for shader in "$SCRIPT_DIR"/*.vert "$SCRIPT_DIR"/*.frag; do
     name="$(basename "$shader")"
-    glslc "$shader" -o "$OUT_DIR/$name.spv"
+    glslc -O -I"$SCRIPT_DIR" "$shader" -o "$OUT_DIR/$name.spv"
     echo "Compiled $name -> $OUT_DIR/$name.spv"
 done

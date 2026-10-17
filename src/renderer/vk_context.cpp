@@ -102,7 +102,53 @@ void VkContext::init(GLFWwindow *window)
 
 	LOG_INFO("Creating logical device and queues...");
 	createLogicalDevice();
+	vkGetPhysicalDeviceProperties(m_physicalDevice, &m_properties);
+
+	VkCommandPoolCreateInfo pci{};
+	pci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	pci.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+				| VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	pci.queueFamilyIndex = findQueueFamilies(m_physicalDevice).graphicsFamily.value();
+	if(vkCreateCommandPool(m_device, &pci, nullptr, &m_transientPool) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create transient command pool");
 	LOG_SUCCESS("Logical device and queues ready.");
+}
+
+// ── Immediate submit ────────────────────────────────────────────
+void VkContext::immediateSubmit(
+  const std::function<void(VkCommandBuffer)> &record)
+{
+	VkCommandBufferAllocateInfo ai{};
+	ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	ai.commandPool = m_transientPool;
+	ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	ai.commandBufferCount = 1;
+	VkCommandBuffer cmd;
+	if(vkAllocateCommandBuffers(m_device, &ai, &cmd) != VK_SUCCESS)
+		throw std::runtime_error("Failed to allocate command buffer");
+
+	VkCommandBufferBeginInfo bi{};
+	bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	vkBeginCommandBuffer(cmd, &bi);
+	record(cmd);
+	vkEndCommandBuffer(cmd);
+
+	VkSubmitInfo si{};
+	si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	si.commandBufferCount = 1;
+	si.pCommandBuffers = &cmd;
+	vkQueueSubmit(m_graphicsQueue, 1, &si, VK_NULL_HANDLE);
+	vkQueueWaitIdle(m_graphicsQueue);
+	vkFreeCommandBuffers(m_device, m_transientPool, 1, &cmd);
+}
+
+bool VkContext::formatSupports(VkFormat format,
+							   VkFormatFeatureFlags features) const
+{
+	VkFormatProperties props;
+	vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &props);
+	return (props.optimalTilingFeatures & features) == features;
 }
 
 // ── Instance ────────────────────────────────────────────────────
@@ -302,7 +348,11 @@ void VkContext::createLogicalDevice()
 			qi.pQueuePriorities = &priority;
 			queueInfos.push_back(qi);
 		}
+	VkPhysicalDeviceFeatures supported{};
+	vkGetPhysicalDeviceFeatures(m_physicalDevice, &supported);
 	VkPhysicalDeviceFeatures features{};
+	features.samplerAnisotropy = supported.samplerAnisotropy;
+	m_anisotropy = supported.samplerAnisotropy == VK_TRUE;
 	VkDeviceCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	ci.queueCreateInfoCount = static_cast<uint32_t>(queueInfos.size());
@@ -324,8 +374,9 @@ void VkContext::createLogicalDevice()
 }
 
 // ── Memory Type ─────────────────────────────────────────────────
-uint32_t VkContext::findMemoryType(uint32_t typeFilter,
-								   VkMemoryPropertyFlags props) const
+std::optional<uint32_t>
+VkContext::tryFindMemoryType(uint32_t typeFilter,
+							 VkMemoryPropertyFlags props) const
 {
 	VkPhysicalDeviceMemoryProperties memProps;
 	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProps);
@@ -333,12 +384,22 @@ uint32_t VkContext::findMemoryType(uint32_t typeFilter,
 		if((typeFilter & (1 << i))
 		   && (memProps.memoryTypes[i].propertyFlags & props) == props)
 			return i;
-	throw std::runtime_error("Failed to find suitable memory type");
+	return std::nullopt;
+}
+
+uint32_t VkContext::findMemoryType(uint32_t typeFilter,
+								   VkMemoryPropertyFlags props) const
+{
+	auto type = tryFindMemoryType(typeFilter, props);
+	if(!type)
+		throw std::runtime_error("Failed to find suitable memory type");
+	return *type;
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────
 void VkContext::cleanup()
 {
+	vkDestroyCommandPool(m_device, m_transientPool, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 	if(enableValidationLayers)
 		{

@@ -86,6 +86,7 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 {
 	const Chunk &chunk = n.center();
 	MeshBuilder solid;
+	MeshBuilder cutout;
 	MeshBuilder water;
 	glm::ivec2 cpos = chunk.getChunkPos();
 	int topY = std::min(chunk.getTopY(), CHUNK_SIZE_Y);
@@ -106,7 +107,7 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 							const BlockData &bd = BlockDatabase::Get(type);
 							uint32_t typeId = static_cast<uint32_t>(type);
 
-							uint32_t tint = 0xFFFFFFFFu;
+							uint32_t tint = TINT_NEUTRAL;
 							if(bd.tint == TintType::Foliage)
 								tint = foliageTint;
 							else if(bd.tint == TintType::Grass)
@@ -134,14 +135,16 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 											v[1] = {p1, Vertex::pack(layer, 6, 0, 1, 1, typeId, 0), tint};
 											v[2] = {p1 + up, Vertex::pack(layer, 6, 0, 1, 0, typeId, 2), tint};
 											v[3] = {p0 + up, Vertex::pack(layer, 6, 0, 0, 0, typeId, 2), tint};
-											solid.quad(v, false);
+											cutout.quad(v, false);
 											Vertex r[4] = {v[1], v[0], v[3], v[2]};
-											solid.quad(r, false);
+											cutout.quad(r, false);
 										}
 									continue;
 								}
 
 							bool isLiquid = bd.renderType == RenderType::Liquid;
+							// Cubes transparents (feuillages, vitres) : découpe alpha
+							MeshBuilder &target = isLiquid ? water : (bd.isTransparent ? cutout : solid);
 							bool waterAbove = isLiquid && n.get(x, y + 1, z) == BlockType::Water;
 							uint32_t wave = bd.waving ? 1u : 0u;
 
@@ -168,10 +171,20 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 
 									// Teinte : herbe uniquement sur le dessus
 									uint32_t faceTint = tint;
-									if(type == BlockType::Grass && f != 2)
-										faceTint = 0xFFFFFFFFu;
-
 									uint32_t layer = static_cast<uint32_t>(faceLayer(bd, f));
+									if(type == BlockType::Grass && f != 2)
+										{
+											faceTint = TINT_NEUTRAL;
+											// "Better Grass" : flanc d'une marche qui descend vers
+											// une autre herbe -> texture du dessus (pentes vertes)
+											if(f != 3
+											   && n.get(x + fd.normal.x, y - 1, z + fd.normal.z)
+													== BlockType::Grass)
+												{
+													layer = static_cast<uint32_t>(bd.texLayerTop);
+													faceTint = tint;
+												}
+										}
 									Vertex v[4];
 									uint32_t ao[4] = {0, 0, 0, 0};
 
@@ -217,7 +230,7 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 
 									// Diagonale qui évite l'anisotropie de l'AO
 									bool flip = ao[0] + ao[2] > ao[1] + ao[3];
-									(isLiquid ? water : solid).quad(v, flip);
+									target.quad(v, flip);
 								}
 						}
 				}
@@ -226,16 +239,19 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 	ChunkMeshData mesh;
 	mesh.chunkPos = cpos;
 	mesh.opaqueIndexCount = static_cast<uint32_t>(solid.indices.size());
+	mesh.cutoutIndexCount = static_cast<uint32_t>(cutout.indices.size());
 	mesh.waterIndexCount = static_cast<uint32_t>(water.indices.size());
 
-	uint32_t waterBase = static_cast<uint32_t>(solid.vertices.size());
+	// Concatène sommets et indices : opaque, cutout, eau
 	mesh.vertices = std::move(solid.vertices);
-	mesh.vertices.insert(mesh.vertices.end(), water.vertices.begin(),
-						 water.vertices.end());
 	mesh.indices = std::move(solid.indices);
-	mesh.indices.reserve(mesh.indices.size() + water.indices.size());
-	for(uint32_t i : water.indices)
-		mesh.indices.push_back(i + waterBase);
+	for(MeshBuilder *b : {&cutout, &water})
+		{
+			uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
+			mesh.vertices.insert(mesh.vertices.end(), b->vertices.begin(), b->vertices.end());
+			for(uint32_t i : b->indices)
+				mesh.indices.push_back(i + base);
+		}
 
 	if(!mesh.vertices.empty())
 		{

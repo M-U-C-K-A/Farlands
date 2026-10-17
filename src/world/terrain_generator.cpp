@@ -17,10 +17,11 @@ namespace
 
 		float mix(float a, float b, float t) { return a + (b - a) * t; }
 
+		// Teinte multiplicative encodée sur [0, 2] (voir Vertex::tint)
 		uint32_t packColor(float r, float g, float b)
 		{
 			auto c = [](float v) {
-				return static_cast<uint32_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f
+				return static_cast<uint32_t>(std::clamp(v * 0.5f, 0.0f, 1.0f) * 255.0f
 											 + 0.5f);
 			};
 			return c(r) | (c(g) << 8) | (c(b) << 16) | (255u << 24);
@@ -142,7 +143,11 @@ int TerrainGenerator::getHeightAt(int wx, int wz) const
 			h = std::min(h, mix(h, bottom, lake));
 		}
 
-	return static_cast<int>(std::clamp(std::round(h), 4.0f, 240.0f));
+	// Compression douce des sommets (pas de plateau écrêté sous la limite
+	// du monde) : au-delà de 175, la hauteur tend vers 242
+	if(h > 175.0f)
+		h = 175.0f + 67.0f * (1.0f - std::exp(-(h - 175.0f) / 67.0f));
+	return static_cast<int>(std::clamp(std::round(h), 4.0f, 245.0f));
 }
 
 // ── Biomes ──────────────────────────────────────────────────────
@@ -190,9 +195,9 @@ ColumnInfo TerrainGenerator::getColumn(int wx, int wz) const
 // ── Teintes (multiplicateurs : les textures sont déjà colorées) ─
 uint32_t TerrainGenerator::grassTint(float temp, float humidity) const
 {
-	glm::vec3 dry(1.0f, 0.90f, 0.58f);
-	glm::vec3 lush(0.80f, 1.0f, 0.74f);
-	glm::vec3 cold(0.72f, 0.90f, 0.86f);
+	glm::vec3 dry(1.30f, 1.18f, 0.62f);
+	glm::vec3 lush(1.05f, 1.42f, 0.80f);
+	glm::vec3 cold(0.92f, 1.15f, 1.05f);
 	glm::vec3 c = glm::mix(dry, lush, humidity);
 	c = glm::mix(c, cold, std::clamp(1.0f - temp * 2.2f, 0.0f, 1.0f));
 	return packColor(c.r, c.g, c.b);
@@ -200,9 +205,9 @@ uint32_t TerrainGenerator::grassTint(float temp, float humidity) const
 
 uint32_t TerrainGenerator::foliageTint(float temp, float humidity) const
 {
-	glm::vec3 dry(1.0f, 0.88f, 0.55f);
-	glm::vec3 lush(0.78f, 1.0f, 0.70f);
-	glm::vec3 cold(0.70f, 0.86f, 0.82f);
+	glm::vec3 dry(1.10f, 1.00f, 0.65f);
+	glm::vec3 lush(0.86f, 1.04f, 0.80f);
+	glm::vec3 cold(0.80f, 0.98f, 0.95f);
 	glm::vec3 c = glm::mix(dry, lush, humidity);
 	c = glm::mix(c, cold, std::clamp(1.0f - temp * 2.2f, 0.0f, 1.0f));
 	return packColor(c.r, c.g, c.b);
@@ -365,33 +370,51 @@ void TerrainGenerator::placeTrees(Chunk &chunk) const
 	int maxCZ = floorDiv(origin.z + CHUNK_SIZE_Z + TREE_REACH, TREE_CELL);
 
 	for(int cx = minCX; cx <= maxCX; ++cx)
-		{
-			for(int cz = minCZ; cz <= maxCZ; ++cz)
-				{
-					uint32_t rnd = hash(cx, cz, 7);
-					int wx = cx * TREE_CELL + static_cast<int>(rnd % TREE_CELL);
-					int wz = cz * TREE_CELL
-							 + static_cast<int>((rnd >> 8) % TREE_CELL);
+		for(int cz = minCZ; cz <= maxCZ; ++cz)
+			{
+				int wx, wz;
+				ColumnInfo col;
+				if(treeInCell(cx, cz, wx, wz, col))
+					placeTree(chunk, col.biome, wx, col.height, wz, hash(cx, cz, 13));
+			}
+}
 
-					ColumnInfo col = getColumn(wx, wz);
-					const BiomeData &bd = getBiomeData(col.biome);
-					if(bd.treeDensity <= 0.0f
-					   || hash01(cx, cz, 9) >= bd.treeDensity)
-						continue;
-					if(col.height <= SEA_LEVEL + 1 || col.height > TREE_LINE)
-						continue;
+bool TerrainGenerator::treeInCell(int cx, int cz, int &wx, int &wz,
+								  ColumnInfo &col) const
+{
+	uint32_t rnd = hash(cx, cz, 7);
+	wx = cx * TREE_CELL + static_cast<int>(rnd % TREE_CELL);
+	wz = cz * TREE_CELL + static_cast<int>((rnd >> 8) % TREE_CELL);
 
-					// Pas d'arbre sur une pente raide
-					int h = col.height;
-					if(std::abs(getHeightAt(wx + 1, wz) - h) > 1
-					   || std::abs(getHeightAt(wx - 1, wz) - h) > 1
-					   || std::abs(getHeightAt(wx, wz + 1) - h) > 1
-					   || std::abs(getHeightAt(wx, wz - 1) - h) > 1)
-						continue;
+	col = getColumn(wx, wz);
+	const BiomeData &bd = getBiomeData(col.biome);
+	if(bd.treeDensity <= 0.0f || hash01(cx, cz, 9) >= bd.treeDensity)
+		return false;
+	if(col.height <= SEA_LEVEL + 1 || col.height > TREE_LINE)
+		return false;
 
-					placeTree(chunk, col.biome, wx, h, wz, hash(cx, cz, 13));
-				}
-		}
+	// Pas d'arbre sur une pente raide
+	int h = col.height;
+	if(std::abs(getHeightAt(wx + 1, wz) - h) > 1
+	   || std::abs(getHeightAt(wx - 1, wz) - h) > 1
+	   || std::abs(getHeightAt(wx, wz + 1) - h) > 1
+	   || std::abs(getHeightAt(wx, wz - 1) - h) > 1)
+		return false;
+	return true;
+}
+
+bool TerrainGenerator::treeNear(int wx, int wz, int radius) const
+{
+	for(int cx = floorDiv(wx - radius, TREE_CELL); cx <= floorDiv(wx + radius, TREE_CELL); ++cx)
+		for(int cz = floorDiv(wz - radius, TREE_CELL); cz <= floorDiv(wz + radius, TREE_CELL); ++cz)
+			{
+				int tx, tz;
+				ColumnInfo col;
+				if(treeInCell(cx, cz, tx, tz, col)
+				   && (tx - wx) * (tx - wx) + (tz - wz) * (tz - wz) <= radius * radius)
+					return true;
+			}
+	return false;
 }
 
 void TerrainGenerator::placeTree(Chunk &chunk, BiomeType biome, int wx,

@@ -45,6 +45,9 @@ class TerrainGenerator
 	/// Altitude de la limite des neiges éternelles en (wx, wz)
 	int getSnowLine(int wx, int wz) const;
 
+	/// Un tronc d'arbre se trouve-t-il à moins de `radius` blocs de (wx, wz) ?
+	bool treeNear(int wx, int wz, int radius) const;
+
 	uint32_t getSeed() const { return m_seed; }
 
 	/// Hash entier déterministe (x, z, sel) -> [0, 2^32)
@@ -70,6 +73,8 @@ class TerrainGenerator
 	uint32_t grassTint(float temp, float humidity) const;
 	uint32_t foliageTint(float temp, float humidity) const;
 
+	/// Arbre de la cellule (cx, cz) : position du tronc si présent
+	bool treeInCell(int cx, int cz, int &wx, int &wz, ColumnInfo &col) const;
 	void placeTrees(Chunk &chunk) const;
 	void placeTree(Chunk &chunk, BiomeType biome, int wx, int baseY, int wz,
 				   uint32_t rnd) const;

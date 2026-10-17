@@ -20,7 +20,8 @@
 //        bit  15       u, bit 16 v (coin de texture)
 //        bits [17..24] type de bloc
 //        bits [25..26] ondulation (0 aucune, 1 feuillage, 2 haut de plante)
-// tint : couleur multiplicative RGBA8 (teinte de biome)
+// tint : couleur multiplicative RGBA8 encodée sur [0, 2] (0x80 = 1.0), pour
+//        pouvoir aussi éclaircir/saturer (teinte de biome)
 struct Vertex
 {
 	glm::vec3 pos;
@@ -58,6 +59,9 @@ struct Vertex
 	}
 };
 static_assert(sizeof(Vertex) == 20, "Vertex must stay tightly packed");
+
+/// Teinte neutre (multiplicateur 1.0) dans l'encodage [0, 2]
+constexpr uint32_t TINT_NEUTRAL = 0xFF808080u;
 
 // ── Uniformes par frame (std140, voir shaders/common.glsl) ──────
 struct FrameUniforms

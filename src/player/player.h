@@ -33,8 +33,17 @@ class Player
 		m_velocity = glm::vec3(0.0f);
 	}
 
-	/// Place le joueur sur la surface du terrain à sa position (x, z)
-	void spawnOnSurface(const World &world);
+	/// Place le joueur sur le terrain à sa position (x, z). startY >= 0 :
+	/// part de cette hauteur (sinon du plus haut bloc) puis remonte tant
+	/// que le joueur est dans un bloc solide.
+	void spawnOnSurface(const World &world, int startY = -1);
+
+	/// Oriente le regard (degrés)
+	void setLook(float yaw, float pitch)
+	{
+		m_yaw = yaw;
+		m_pitch = pitch;
+	}
 
 	// ── Accesseurs ──────────────────────────────────────────────
 	glm::vec3 getEyePosition() const;
@@ -70,6 +79,7 @@ class Player
 	static constexpr float MOVE_SPEED = 6.0f;
 	static constexpr float MOUSE_SENSITIVITY = 0.1f;
 	static constexpr float PLAYER_HEIGHT = 1.8f;
+	static constexpr float EYE_HEIGHT = 1.62f;
 	static constexpr float PLAYER_WIDTH = 0.6f;
 
 	// ── Collision AABB ──────────────────────────────────────────

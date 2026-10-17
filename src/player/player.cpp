@@ -143,18 +143,21 @@ void Player::moveVertical(float dy, const World &world)
 }
 
 // ── Spawn ───────────────────────────────────────────────────────
-void Player::spawnOnSurface(const World &world)
+void Player::spawnOnSurface(const World &world, int startY)
 {
 	int bx = static_cast<int>(std::floor(m_position.x));
 	int bz = static_cast<int>(std::floor(m_position.z));
-	for(int y = CHUNK_SIZE_Y - 1; y >= 0; --y)
-		{
-			if(world.getBlockAt(bx, y, bz) != BlockType::Air)
-				{
-					m_position.y = static_cast<float>(y + 1);
-					break;
-				}
-		}
+	if(startY >= 0)
+		m_position.y = static_cast<float>(startY);
+	else
+		for(int y = CHUNK_SIZE_Y - 1; y >= 0; --y)
+			{
+				if(BlockDatabase::IsSolid(world.getBlockAt(bx, y, bz)))
+					{
+						m_position.y = static_cast<float>(y + 1);
+						break;
+					}
+			}
 	m_velocity = glm::vec3(0.0f);
 	// Sécurité : ne jamais apparaître dans un bloc solide
 	while(collidesAt(world, m_position) && m_position.y < CHUNK_SIZE_Y)
@@ -228,7 +231,7 @@ bool Player::collidesAt(const World &world, const glm::vec3 &pos) const
 // ── Accesseurs ──────────────────────────────────────────────────
 glm::vec3 Player::getEyePosition() const
 {
-	return m_position + glm::vec3(0.0f, PLAYER_HEIGHT, 0.0f);
+	return m_position + glm::vec3(0.0f, EYE_HEIGHT, 0.0f);
 }
 
 glm::vec3 Player::getFrontVector() const
@@ -251,14 +254,10 @@ glm::vec3 Player::getHorizontalFront() const
 
 int Player::getChunkX() const
 {
-	int wx = static_cast<int>(std::floor(m_position.x));
-	return (wx >= 0) ? (wx / CHUNK_SIZE_X)
-					 : ((wx - CHUNK_SIZE_X + 1) / CHUNK_SIZE_X);
+	return floorDiv(static_cast<int>(std::floor(m_position.x)), CHUNK_SIZE_X);
 }
 
 int Player::getChunkZ() const
 {
-	int wz = static_cast<int>(std::floor(m_position.z));
-	return (wz >= 0) ? (wz / CHUNK_SIZE_Z)
-					 : ((wz - CHUNK_SIZE_Z + 1) / CHUNK_SIZE_Z);
+	return floorDiv(static_cast<int>(std::floor(m_position.z)), CHUNK_SIZE_Z);
 }

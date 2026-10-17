@@ -88,7 +88,7 @@ class World
 
 	TerrainGenerator m_generator;
 	std::string m_worldDir;
-	int m_radius = 12;
+	int m_radius = 20;
 	glm::ivec2 m_center{0};
 	bool m_centerValid = false;
 	int m_meshedCount = 0;
@@ -108,7 +108,7 @@ class World
 	// Centre/rayon courants, lus par les travaux pour s'annuler
 	std::atomic<int> m_atomicCX{0};
 	std::atomic<int> m_atomicCZ{0};
-	std::atomic<int> m_atomicRadius{12};
+	std::atomic<int> m_atomicRadius{20};
 
 	void scheduleAround();
 	void unloadFar();
