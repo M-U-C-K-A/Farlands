@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>A Minecraft-style voxel engine written from scratch in C++20 and Vulkan, with a physically based HDR renderer.</b><br>
-  Sun shadows · atmospheric sky · volumetric clouds · reflective water · bloom & god rays · snowy mountains, lakes and cherry groves · multithreaded infinite world
+  Sun shadows · atmospheric sky · volumetric clouds & fog · reflective water · shader presets (Realistic, Golden Hour, Horror) · far terrain up to 6 km · falling leaves · multithreaded infinite world
 </p>
 
 <p align="center">
@@ -57,9 +57,37 @@
   </tr>
 </table>
 
-<p align="center">
-  <img src="docs/assets/screenshots/menu.jpg" alt="Main menu drawn over the live world, slowly panning across the spawn vista" width="80%">
-</p>
+### Shader presets
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/golden-hour.jpg" alt="Golden Hour preset: low sun behind a snowy peak, golden mist over the lake and light shafts" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/horror.jpg" alt="Horror preset: thick grey fog, desaturated colors and a square sun glowing through the mist" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Golden Hour</b> — low sun, valley mist, volumetric light shafts, warm grading</sub></td>
+    <td align="center"><sub><b>Horror</b> — overcast sky, dense fog, square sun, desaturated grading</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/far-terrain.jpg" alt="View from a summit: lakes, cherry groves and distant mountain ranges rendered by the far terrain LOD" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/golden-vista.jpg" alt="Sunset over a valley seen from a summit, with the far terrain stretching to the horizon" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Far terrain</b> — LOD tiles up to 6 km beyond the chunk render distance</sub></td>
+    <td align="center"><sub><b>Sunset vista</b> — atmospheric scattering over kilometres of terrain</sub></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/sand-transition.jpg" alt="Grass fading into sand with an organic pixel-art edge instead of a hard block boundary" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/menu.jpg" alt="Main menu drawn over the live world, slowly panning across the spawn vista" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Surface transitions</b> — grass, sand and snow blend with a pixel-art mask</sub></td>
+    <td align="center"><sub><b>Main menu</b> — drawn over the live world</sub></td>
+  </tr>
+</table>
 
 <p align="center"><sub>Real frames from <code>build/farlands</code> (Release) on an Apple M4 through MoltenVK, 1280×720, render distance 20 chunks — about 90–140 FPS with every effect on.</sub></p>
 
@@ -78,8 +106,12 @@
 - **Sun shadows**: 4096² shadow map, texel-snapped and cached between frames, PCF with a rotated Poisson disk, alpha-tested foliage
 - **Water**: procedural waves, screen-space reflections with an environment fallback, refraction, Beer–Lambert absorption, sun glint, caustics, view from below
 - **Terrain shading**: normal maps derived from the textures, sky ambient light, per-vertex AO, foliage translucency, waving leaves and grass, height fog / aerial perspective
-- **Post**: bloom mip chain, god rays, ACES tonemapping, vignette, dithering
-- Per-chunk GPU buffers, frustum culling, opaque / cutout / water passes, GPU timers in the F3 overlay
+- **Volumetric fog**: ray-marched ground mist lit through the shadow map, so sunlight streams between trees and peaks
+- **Shader presets**: Realistic, Golden Hour and Horror — sun, clouds, fog, light shafts and color grading in one click
+- **Post**: bloom mip chain, god rays, ACES tonemapping, contrast / filter / shadow tint grading, vignette, dithering
+- **Far terrain (LOD)**: heightmap tiles generated straight from the world generator, out to 6 km
+- **Falling leaves and petals**: instanced particles lit by the sun, landing on the ground or floating on water
+- Per-chunk GPU buffers, frustum culling, opaque / cutout / water passes, GPU timers
 
 </td>
     <td valign="top" width="50%">
@@ -91,6 +123,7 @@
 - **10 biomes**: Ocean, Beach, Plains, Forest, Desert, Mountains, Taiga, Snowy Taiga, Cherry Grove, Snowy Peaks
 - **Trees** (oak, birch, spruce, cherry), tall grass and flowers, ores — deterministic across chunk borders
 - **27 data-driven blocks** with biome tints; procedural pixel-art textures for the new ones
+- **Smooth surface transitions** between grass, sand and snow, and irregular beach edges
 - **Scenic spawn**: the game searches for a spot with a lake in front and peaks in view
 
 </td>
@@ -107,8 +140,8 @@
     <td valign="top">
 
 **🛠️ Tooling**
-- **Options** window: render distance, FOV, sun position, clouds, shadows, SSR, bloom, exposure, render scale, VSync
-- **F3 overlay**: FPS, GPU time per pass, chunks, biome, climate, targeted block
+- **Options** window in tabs: *Shaders* (presets, sky, fog, grading), *Graphics* (distances, shadows, display), *Performance* (FPS, 1% low, frame-time graph, GPU time per pass, CPU breakdown, draw calls, triangles, memory) and *System* (GPU, Vulkan, display, build)
+- Optional in-game **FPS counter**, **F3 overlay**, **F11 borderless fullscreen**
 - **F2 screenshots**, coloured logger, Vulkan validation layers in Debug
 - `terrain_preview` tool: renders a top-down map of the generator
 
@@ -166,10 +199,11 @@ The main menu is drawn over the live world while it streams in the background; c
 | <kbd>Tab</kbd> | Toggle mouse capture |
 | <kbd>F2</kbd> | Screenshot → `~/.farlands/screenshots/` |
 | <kbd>F3</kbd> | Debug overlay (FPS, GPU passes, chunks, biome) |
+| <kbd>F11</kbd> | Borderless fullscreen |
 
 ### Performance tips
 
-Everything can be tuned live in **Options**. On slower GPUs, lower the **render distance** (vertex load) and the **render scale** (pixel load), or disable **SSR** and **clouds**. Shadows are cheap once cached; their cost only shows when you move several blocks or change the sun.
+Everything can be tuned live in **Options**, and the *Performance* tab shows where the time goes. On slower GPUs, lower the **render distance** (vertex load) and the **render scale** (pixel load), or disable **SSR**, **clouds** or **volumetric fog**. The **far terrain** is cheap (a few hundred thousand vertices); shadows are cached and only re-rendered when you move several blocks or change the sun.
 
 ---
 
@@ -184,10 +218,11 @@ flowchart LR
     A[Sky LUT<br/>256×128] --> B[Sky environment<br/>+ clouds, 512×256]
     B --> C[Clouds<br/>½ resolution]
     C --> D[Shadow map<br/>cached]
-    D --> E[Scene<br/>opaque · cutout · sky]
+    D --> E[Scene<br/>chunks · far terrain · leaves · sky]
     E --> F[Water<br/>SSR · refraction]
-    F --> G[Bloom<br/>5 mips]
-    G --> H[Composite<br/>god rays · ACES · UI]
+    F --> G[Volumetric fog<br/>½ resolution]
+    G --> H[Bloom<br/>5 mips]
+    H --> I[Composite<br/>god rays · grading · ACES · UI]
 ```
 
 All passes share one pipeline layout: a global descriptor set (uniforms, texture arrays, shadow map, sky, render targets) and 32 bytes of push constants (the chunk origin relative to the camera).
@@ -205,6 +240,16 @@ color        = applyFog(color, pos, distance);           // height fog tinted by
 ```
 
 The composite pass applies the exposure, ACES tonemapping and saturation. The swapchain is sRGB, so the gamma curve is applied by the hardware.
+
+### Volumetric fog and presets
+
+The fog pass marches each pixel's view ray (at half resolution, 24 steps) up to the visible surface. Density is concentrated near the water level and modulated by drifting noise; each sample receives sunlight through the **shadow map** (forward-scattering phase function), which is what draws light shafts between trees and behind mountains, plus diffuse sky light. The result is upsampled with depth awareness and applied before bloom, so the mist glows around the sun.
+
+A **preset** (`applyPreset()` in `render_settings.h`) only changes the mood — sun elevation, cloud coverage, fog density and height, light shafts and color grading — and leaves performance settings alone. Golden Hour and Horror also place the sun in front of the camera. Under heavy cloud cover the fog, ambient light and sky turn grey (luminance-preserving), and clouds block much more sunlight.
+
+### Far terrain (LOD)
+
+`LodTerrain` covers everything between the chunk render distance and the LOD distance (2 km by default, up to 6 km) with 256-block tiles built on 3 background threads straight from `TerrainGenerator` — no chunk needed. Resolution drops with distance (one vertex every 4, 8 then 16 blocks); vertices carry the biome surface color (grass tint, sand, rock on cliffs, snow, water) and forests are raised into a coloured canopy. Skirts hide the cracks between resolutions, tiles sit slightly below the real terrain and are discarded inside the chunk radius, so the editable world always wins near the player.
 
 ### Infinite world streaming
 
@@ -228,6 +273,12 @@ The composite pass applies the exposure, ACES tonemapping and saturation. The sw
 </p>
 
 A vertex is **20 bytes**: the position inside the chunk, a packed word (texture layer, normal, AO, UV corner, block id, wave flag) and an RGBA8 biome tint.
+
+### Surface transitions and falling leaves
+
+Top faces of grass, sand and snow store, per vertex, the neighbouring surface type and how many of the blocks around that corner use it (4 spare bits of the packed vertex word). The fragment shader turns that into a blend weight and thresholds it with a pixel-art noise (16 texels per block plus large-scale noise); both faces of a boundary use the same field, so the pattern stays continuous across blocks. Beach edges also follow a noise instead of a contour line.
+
+`LeafParticles` probes random blocks around the camera: cherry and broad leaves with air below spawn petals and leaves that tumble in the wind, land on the ground or float on water, then fade out. They are drawn as one instanced draw call with a procedural, pixelated leaf shape, shadows and translucency.
 
 ### Blocks
 
@@ -272,7 +323,7 @@ Farlands/
 │   ├── app.{h,cpp}             Application — window, main loop, input, HUD, scenic spawn
 │   ├── core/                   logger.h · types.h (Vertex, uniforms) · job_system.* · stb_*
 │   ├── renderer/
-│   │   ├── renderer.*          pass chain, chunk buffers, descriptors, GPU timers, screenshots
+│   │   ├── renderer.*          pass chain, chunk/LOD/particle buffers, descriptors, GPU timers, screenshots
 │   │   ├── pipelines.*         render passes and pipeline builder
 │   │   ├── textures.*          block texture arrays (+ normal maps), UI images, cloud noise
 │   │   ├── atmosphere.*        sun direction and transmittance (CPU)
@@ -280,9 +331,11 @@ Farlands/
 │   │   ├── vk_swapchain.*      swapchain, present modes, framebuffers
 │   │   ├── vk_utils.*          images, buffers, barriers, samplers
 │   │   ├── camera.*            reverse-Z projection, frustum planes
-│   │   └── render_settings.h   options exposed in the menu
+│   │   └── render_settings.h   options and shader presets
 │   ├── world/
 │   │   ├── world.*             streaming, job scheduling, mesh events
+│   │   ├── lod_terrain.*       far terrain tiles (LOD)
+│   │   ├── leaf_particles.*    falling leaves and petals
 │   │   ├── terrain_generator.* relief, biomes, surface, trees, plants
 │   │   ├── chunk.*             16×256×16 block storage + biome tints
 │   │   ├── chunk_mesh.*        face culling, AO, plants, water
@@ -291,7 +344,7 @@ Farlands/
 │   │   ├── noise.*             Perlin noise + fBm octaves
 │   │   └── block.*             BlockDatabase (JSON)
 │   ├── player/player.*         first-person controller, physics, AABB
-│   └── ui/menu.*               main menu and Options window
+│   └── ui/                     menu.* (main menu, Options tabs, FPS counter) · debug_info.* (stats)
 ├── shaders/                    common · atmosphere · lighting (*.glsl) and the pass shaders
 ├── tools/terrain_preview.cpp   top-down map of the terrain generator
 ├── scripts/gen_textures.py     procedural textures for the newer blocks
@@ -304,7 +357,8 @@ Farlands/
 
 | What | Where | Default |
 | --- | --- | --- |
-| Graphics options | `RenderSettings` in `src/renderer/render_settings.h` (or the Options window) | render distance 20, shadows 4096², clouds 0.58 |
+| Graphics options | `RenderSettings` in `src/renderer/render_settings.h` (or the Options window) | render distance 20, far terrain 2048, shadows 4096², clouds 0.58 |
+| Shader presets | `applyPreset()` in `src/renderer/render_settings.h` | Realistic |
 | World seed | `m_world{42}` in `src/app.h` | 42 |
 | Sea level | `SEA_LEVEL` in `src/world/biome.h` | 62 |
 | Snow line | `TerrainGenerator::getSnowLine()` | 156 ± 12 |
@@ -325,12 +379,14 @@ Farlands/
 - [x] Terrain with lakes, ridged mountains, snow, 10 biomes, trees, grass and flowers
 - [x] First-person controller with swimming and AABB collisions
 - [x] Main menu over the live world, Options window, F3 overlay with GPU timers, F2 screenshots
+- [x] Volumetric fog with light shafts, shader presets (Realistic, Golden Hour, Horror), color grading
+- [x] Far terrain LOD up to 6 km, falling leaves, smooth grass / sand / snow transitions
+- [x] Performance and system tabs, FPS counter, F11 fullscreen
 
 **Next**
 
 - [ ] Greedy meshing (fewer vertices for shadows and distant terrain)
 - [ ] Cascaded shadow maps
-- [ ] Distant terrain LOD beyond the render distance
 - [ ] Breaking and placing blocks (and saving them)
 - [ ] Caves
 - [ ] Day / night cycle, moon and stars

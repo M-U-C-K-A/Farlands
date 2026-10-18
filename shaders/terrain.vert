@@ -14,6 +14,8 @@ layout(location = 3) out float vAO;
 layout(location = 4) out vec3 vTint;
 layout(location = 5) out float vViewDepth;
 layout(location = 6) flat out uint vBlock;
+layout(location = 7) flat out uint vBlendKind;
+layout(location = 8) out float vBlendWeight;   // part du voisin autour du sommet
 
 void main()
 {
@@ -29,4 +31,6 @@ void main()
     vTint = inTint.rgb * 2.0; // teinte encodée sur [0, 2]
     vViewDepth = -(u.view * vec4(rel, 1.0)).z;
     vBlock = v.block;
+    vBlendKind = v.blendKind;
+    vBlendWeight = float(v.blendCount) * 0.25;
 }

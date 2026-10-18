@@ -45,6 +45,15 @@ class TerrainGenerator
 	/// Altitude de la limite des neiges éternelles en (wx, wz)
 	int getSnowLine(int wx, int wz) const;
 
+	/// Biome d'une colonne dont la hauteur est déjà connue (terrain lointain)
+	BiomeType biomeForHeight(int height, int wx, int wz) const
+	{
+		return selectBiome(height, getTemperature(wx, wz), getHumidity(wx, wz), wx, wz);
+	}
+	/// Teintes de biome (multiplicateurs encodés sur [0, 2], RGBA8)
+	uint32_t grassTint(float temp, float humidity) const;
+	uint32_t foliageTint(float temp, float humidity) const;
+
 	/// Un tronc d'arbre se trouve-t-il à moins de `radius` blocs de (wx, wz) ?
 	bool treeNear(int wx, int wz, int radius) const;
 
@@ -70,9 +79,6 @@ class TerrainGenerator
 
 	BiomeType selectBiome(int height, float temp, float humidity, int wx,
 						  int wz) const;
-	uint32_t grassTint(float temp, float humidity) const;
-	uint32_t foliageTint(float temp, float humidity) const;
-
 	/// Arbre de la cellule (cx, cz) : position du tronc si présent
 	bool treeInCell(int cx, int cz, int &wx, int &wz, ColumnInfo &col) const;
 	void placeTrees(Chunk &chunk) const;

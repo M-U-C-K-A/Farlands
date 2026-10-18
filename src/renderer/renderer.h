@@ -16,6 +16,8 @@
 
 #include "../core/types.h"
 #include "../world/chunk_mesh.h"
+#include "../world/leaf_particles.h"
+#include "../world/lod_terrain.h"
 #include "camera.h"
 #include "render_settings.h"
 #include "textures.h"
@@ -39,6 +41,7 @@ struct FrameParams
 	float time = 0.0f;
 	bool underwater = false;
 	float viewDistance = 320.0f; // rayon réellement chargé (blocs) : brume de bord
+	float lodInnerRadius = 0.0f; // en deçà, le terrain lointain est masqué
 };
 
 class Renderer
@@ -53,6 +56,13 @@ class Renderer
 	// ── Meshes des chunks ───────────────────────────────────────
 	void setChunkMesh(const ChunkMeshData &mesh);
 	void removeChunkMesh(const glm::ivec2 &pos);
+
+	// ── Terrain lointain (LOD) ──────────────────────────────────
+	void setLodMesh(const LodMesh &mesh);
+	void removeLodMesh(const glm::ivec2 &tile);
+
+	// ── Particules (feuilles qui tombent) ───────────────────────
+	void setParticles(const std::vector<ParticleInstance> &instances);
 
 	// Demande une capture d'écran PNG de la prochaine frame présentée
 	void requestScreenshot(const std::string &path);
@@ -72,6 +82,7 @@ class Renderer
 		PASS_SHADOW,
 		PASS_SCENE,
 		PASS_WATER,
+		PASS_FOG,
 		PASS_BLOOM,
 		PASS_FINAL,
 		PASS_COUNT
@@ -84,13 +95,35 @@ class Renderer
 		int drawnChunks = 0;
 		int shadowChunks = 0;
 		size_t gpuMemoryMB = 0;
+		size_t lodMemoryMB = 0;
+		int lodTiles = 0;
+		int drawnLodTiles = 0;
 		float passMs[PASS_COUNT] = {};
 		float gpuMs = 0.0f;
 		float gpuFrameMs = 0.0f;  // premier -> dernier timestamp
 		float drawFrameMs = 0.0f; // CPU : drawFrame complet
 		float fenceWaitMs = 0.0f; // CPU : attente du GPU
 		float recordMs = 0.0f;    // CPU : enregistrement des commandes
+		uint32_t drawCalls = 0;
+		uint64_t triangles = 0;
+		uint64_t shadowTriangles = 0;
+		uint32_t shadowUpdates = 0; // recalculs de la shadow map (cumul)
+		VkExtent2D renderExtent{0, 0};
+		VkExtent2D swapchainExtent{0, 0};
 	};
+
+	/// Informations sur le GPU et le swapchain (onglet Système)
+	struct DeviceInfo
+	{
+		std::string gpuName;
+		std::string apiVersion;
+		std::string driverVersion;
+		std::string presentMode;
+		std::string swapchainFormat;
+		uint32_t swapchainImages = 0;
+		int shadowResolution = 0;
+	};
+	DeviceInfo getDeviceInfo() const;
 	const Stats &getStats() const { return m_stats; }
 
   private:
@@ -132,6 +165,10 @@ class Renderer
 		VkPipeline shadowCutout = VK_NULL_HANDLE;
 		VkPipeline terrain = VK_NULL_HANDLE;
 		VkPipeline terrainCutout = VK_NULL_HANDLE;
+		VkPipeline particles = VK_NULL_HANDLE;
+		VkPipeline lod = VK_NULL_HANDLE;
+		VkPipeline volumetric = VK_NULL_HANDLE;
+		VkPipeline fogApply = VK_NULL_HANDLE;
 		VkPipeline sky = VK_NULL_HANDLE;
 		VkPipeline blit = VK_NULL_HANDLE;
 		VkPipeline water = VK_NULL_HANDLE;
@@ -156,6 +193,9 @@ class Renderer
 	GpuImage m_shadowMap;
 	GpuImage m_sceneColor, m_linearDepth, m_sceneDepth, m_hdrColor, m_bloom;
 	GpuImage m_cloudTex; // nuages à mi-résolution (rgb diffusé, a transmittance)
+	GpuImage m_finalDepth;    // profondeur linéaire après l'eau
+	GpuImage m_volumetricTex; // brume volumétrique, mi-résolution (rgb, a = T)
+	GpuImage m_hdrFog;        // image HDR finale (brume appliquée)
 	GpuImage m_panorama, m_logo;
 	static constexpr uint32_t BLOOM_MIPS = 5;
 	static constexpr uint32_t SKY_LUT_W = 256, SKY_LUT_H = 128;
@@ -165,6 +205,7 @@ class Renderer
 	VkFramebuffer m_fbShadow = VK_NULL_HANDLE;
 	VkFramebuffer m_fbScene = VK_NULL_HANDLE, m_fbWater = VK_NULL_HANDLE;
 	VkFramebuffer m_fbClouds = VK_NULL_HANDLE;
+	VkFramebuffer m_fbVolumetric = VK_NULL_HANDLE, m_fbFogApply = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> m_fbBloom;
 
 	VkExtent2D m_renderExtent{0, 0};
@@ -188,6 +229,11 @@ class Renderer
 	std::vector<VkFence> m_inFlightFences;
 	uint32_t m_currentFrame = 0;
 	uint64_t m_frameNumber = 0;
+
+	// ── Particules : un buffer d'instances par frame en vol ────
+	std::array<GpuBuffer, MAX_FRAMES_IN_FLIGHT> m_particleBuffers{};
+	std::vector<ParticleInstance> m_pendingParticles;
+	uint32_t m_particleCount = 0;
 
 	// ── Cache de la shadow map ──────────────────────────────────
 	// La shadow map n'est recalculée que si la caméra s'est déplacée, si le
@@ -215,6 +261,16 @@ class Renderer
 		}
 	};
 	std::unordered_map<glm::ivec2, GpuChunk, IVec2Hasher> m_chunks;
+	struct GpuLod
+	{
+		GpuBuffer buffer;
+		VkDeviceSize indexOffset = 0;
+		uint32_t indexCount = 0;
+		glm::ivec2 tile{0};
+		float minY = 0.0f, maxY = 0.0f;
+	};
+	std::unordered_map<glm::ivec2, GpuLod, IVec2Hasher> m_lods;
+	VkDeviceSize m_lodMemory = 0;
 	std::vector<std::pair<uint64_t, GpuBuffer>> m_deletionQueue;
 	VkDeviceSize m_chunkMemory = 0;
 	Stats m_stats;

@@ -156,7 +156,10 @@ BiomeType TerrainGenerator::selectBiome(int height, float temp, float humidity,
 {
 	if(height <= SEA_LEVEL)
 		return BiomeType::Ocean;
-	if(height <= SEA_LEVEL + 2 && temp > 0.2f)
+	// Limite plage / herbe irrégulière (pas une simple courbe de niveau)
+	int beachTop = SEA_LEVEL + 1
+				   + static_cast<int>(std::round(1.4f + 1.4f * m_surfaceNoise.noise(wx * 0.045f, wz * 0.045f)));
+	if(height <= beachTop && temp > 0.2f)
 		return BiomeType::Beach;
 	if(height >= getSnowLine(wx, wz))
 		return BiomeType::SnowyPeaks;

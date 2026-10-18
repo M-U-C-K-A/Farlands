@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdarg>
+#include <cstdio>
 
 namespace
 	{
@@ -20,13 +22,42 @@ namespace
 			ImGui::PopStyleColor(4);
 			return clicked;
 		}
+
+		// Couleur indicative selon le temps de frame (vert / orange / rouge)
+		ImVec4 frameColor(float ms)
+		{
+			if(ms <= 1000.0f / 59.0f)
+				return ImVec4(0.45f, 0.9f, 0.45f, 1.0f);
+			if(ms <= 1000.0f / 29.0f)
+				return ImVec4(1.0f, 0.75f, 0.3f, 1.0f);
+			return ImVec4(1.0f, 0.4f, 0.35f, 1.0f);
+		}
+
+		void row(const char *label, const char *fmt, ...)
+		{
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextDisabled("%s", label);
+			ImGui::TableNextColumn();
+			char buf[256];
+			va_list args;
+			va_start(args, fmt);
+			std::vsnprintf(buf, sizeof(buf), fmt, args);
+			va_end(args);
+			ImGui::TextUnformatted(buf);
+		}
+
+		bool beginInfoTable(const char *id)
+		{
+			return ImGui::BeginTable(id, 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg);
+		}
 	}
 
 void MainMenu::draw(GLFWwindow *window, ImTextureID background, ImTextureID logo,
-					RenderSettings &settings, bool gameStarted)
+					RenderSettings &settings, bool gameStarted, const DebugInfo &info)
 {
 	if(m_showOptions)
-		drawOptions(settings);
+		drawOptions(settings, info);
 	if(!m_active)
 		return;
 
@@ -93,35 +124,144 @@ void MainMenu::draw(GLFWwindow *window, ImTextureID background, ImTextureID logo
 	if(bigButton("Quit Game", ImVec2(bw * 0.5f - 5.0f, bh)))
 		glfwSetWindowShouldClose(window, true);
 
+	// Préréglage de shaders courant, sous les boutons
+	ImGui::SetCursorPos(ImVec2(w * 0.5f - bw * 0.5f, y + 104.0f));
+	ImGui::TextColored(ImVec4(1, 1, 1, 0.75f), "Shaders: %s   |   %.0f FPS",
+					   presetName(settings.preset), info.fps);
+
 	ImGui::SetCursorPos(ImVec2(10.0f, h - 26.0f));
 	ImGui::TextColored(ImVec4(1, 1, 1, 0.6f), "Farlands - C++20 / Vulkan");
 	ImGui::End();
 }
 
-void MainMenu::drawOptions(RenderSettings &s)
+void MainMenu::drawFpsCounter(const DebugInfo &info)
+{
+	const ImVec2 display = ImGui::GetIO().DisplaySize;
+	ImGui::SetNextWindowPos(ImVec2(display.x - 10.0f, 10.0f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+	ImGui::SetNextWindowBgAlpha(0.35f);
+	ImGui::Begin("##fps", nullptr,
+				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize
+				   | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
+				   | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs);
+	float ms = info.fps > 0.0f ? 1000.0f / info.fps : 0.0f;
+	ImGui::TextColored(frameColor(ms), "%.0f FPS", info.fps);
+	ImGui::SameLine();
+	ImGui::TextDisabled("%.1f ms  1%% low %.0f", ms, info.low1Fps);
+	ImGui::PlotLines("##ft", info.frameMs.data(), DebugInfo::HISTORY, info.historyHead,
+					 nullptr, 0.0f, std::max(20.0f, info.frameMaxMs * 1.1f), ImVec2(220, 32));
+	ImGui::End();
+}
+
+void MainMenu::drawOptions(RenderSettings &s, const DebugInfo &info)
 {
 	const ImVec2 display = ImGui::GetIO().DisplaySize;
 	ImGui::SetNextWindowPos(ImVec2(display.x - 20.0f, 20.0f), ImGuiCond_Appearing,
 							ImVec2(1.0f, 0.0f));
-	ImGui::SetNextWindowSize(ImVec2(380.0f, 0.0f), ImGuiCond_Appearing);
-	ImGui::SetNextWindowBgAlpha(0.85f);
-	if(!ImGui::Begin("Options", &m_showOptions, ImGuiWindowFlags_AlwaysAutoResize))
+	ImGui::SetNextWindowSize(ImVec2(470.0f, std::min(display.y - 40.0f, 680.0f)),
+							 ImGuiCond_Appearing);
+	ImGui::SetNextWindowBgAlpha(0.88f);
+	if(!ImGui::Begin("Options", &m_showOptions))
 		{
 			ImGui::End();
 			return;
 		}
 
-	ImGui::PushItemWidth(200.0f);
-	ImGui::SeparatorText("World");
-	ImGui::SliderInt("Render distance", &s.renderDistance, 4, 128, "%d chunks");
-	ImGui::SliderFloat("Field of view", &s.fov, 50.0f, 110.0f, "%.0f deg");
+	auto tabFlags = [&](int tab) {
+		return m_forceTab == tab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+	};
+	if(ImGui::BeginTabBar("##tabs"))
+		{
+			if(ImGui::BeginTabItem("Shaders", nullptr, tabFlags(0)))
+				{
+					drawShadersTab(s);
+					ImGui::EndTabItem();
+				}
+			if(ImGui::BeginTabItem("Graphics", nullptr, tabFlags(1)))
+				{
+					drawGraphicsTab(s);
+					ImGui::EndTabItem();
+				}
+			if(ImGui::BeginTabItem("Performance", nullptr, tabFlags(2)))
+				{
+					drawPerformanceTab(info);
+					ImGui::EndTabItem();
+				}
+			if(ImGui::BeginTabItem("System", nullptr, tabFlags(3)))
+				{
+					drawSystemTab(info);
+					ImGui::EndTabItem();
+				}
+			ImGui::EndTabBar();
+		}
+	m_forceTab = -1;
+	ImGui::End();
+}
 
+void MainMenu::drawShadersTab(RenderSettings &s)
+{
+	// ── Préréglages ─────────────────────────────────────────────
+	ImGui::SeparatorText("Preset");
+	for(int i = 0; i < static_cast<int>(ShaderPreset::Custom); ++i)
+		{
+			ShaderPreset p = static_cast<ShaderPreset>(i);
+			if(i > 0)
+				ImGui::SameLine();
+			bool selected = s.preset == p;
+			if(selected)
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.26f, 0.45f, 0.75f, 1.0f));
+			if(ImGui::Button(presetName(p), ImVec2(140, 30)))
+				{
+					applyPreset(s, p);
+					m_presetChanged = true;
+				}
+			if(selected)
+				ImGui::PopStyleColor();
+		}
+	if(s.preset == ShaderPreset::Custom)
+		ImGui::TextDisabled("Custom (modified by hand)");
+
+	// Toute modification manuelle bascule en "Custom"
+	bool c = false;
+	ImGui::PushItemWidth(220.0f);
 	ImGui::SeparatorText("Sun & sky");
-	ImGui::SliderFloat("Sun elevation", &s.sunElevation, 1.0f, 89.0f, "%.0f deg");
-	ImGui::SliderFloat("Sun azimuth", &s.sunAzimuth, 0.0f, 360.0f, "%.0f deg");
-	ImGui::Checkbox("Volumetric clouds", &s.clouds);
-	ImGui::SliderFloat("Cloud coverage", &s.cloudCoverage, 0.0f, 1.0f, "%.2f");
-	ImGui::SliderFloat("Haze", &s.fogDensity, 0.0f, 4.0f, "%.2f");
+	c |= ImGui::SliderFloat("Sun elevation", &s.sunElevation, 1.0f, 89.0f, "%.1f deg");
+	c |= ImGui::SliderFloat("Sun azimuth", &s.sunAzimuth, 0.0f, 360.0f, "%.0f deg");
+	c |= ImGui::Checkbox("Square sun", &s.squareSun);
+	c |= ImGui::Checkbox("Volumetric clouds", &s.clouds);
+	c |= ImGui::SliderFloat("Cloud coverage", &s.cloudCoverage, 0.0f, 1.0f, "%.2f");
+	c |= ImGui::SliderFloat("Cloud density", &s.cloudDensity, 0.2f, 3.0f, "%.2f");
+	c |= ImGui::SliderFloat("Cloud brightness", &s.cloudBrightness, 0.1f, 1.5f, "%.2f");
+
+	ImGui::SeparatorText("Fog & light");
+	c |= ImGui::SliderFloat("Haze", &s.fogDensity, 0.0f, 6.0f, "%.2f");
+	c |= ImGui::Checkbox("Volumetric fog", &s.volumetricFog);
+	c |= ImGui::SliderFloat("Mist density", &s.volumetricDensity, 0.0f, 6.0f, "%.2f");
+	c |= ImGui::SliderFloat("Mist height", &s.mistHeight, 2.0f, 80.0f, "%.0f blocks");
+	c |= ImGui::SliderFloat("Light shafts", &s.lightShafts, 0.0f, 4.0f, "%.2f");
+	c |= ImGui::Checkbox("Screen-space god rays", &s.godRays);
+
+	ImGui::SeparatorText("Color grading");
+	c |= ImGui::SliderFloat("Exposure", &s.exposure, 0.2f, 4.0f, "%.2f");
+	c |= ImGui::SliderFloat("Contrast", &s.contrast, 0.5f, 1.6f, "%.2f");
+	c |= ImGui::SliderFloat("Saturation", &s.saturation, 0.0f, 2.0f, "%.2f");
+	c |= ImGui::ColorEdit3("Color filter", &s.colorFilter.x, ImGuiColorEditFlags_Float);
+	c |= ImGui::ColorEdit3("Shadow tint", &s.shadowTint.x, ImGuiColorEditFlags_Float);
+	c |= ImGui::SliderFloat("Vignette", &s.vignette, 0.0f, 1.5f, "%.2f");
+	c |= ImGui::Checkbox("Bloom", &s.bloom);
+	c |= ImGui::SliderFloat("Bloom strength", &s.bloomStrength, 0.0f, 0.3f, "%.3f");
+	ImGui::PopItemWidth();
+	if(c)
+		s.preset = ShaderPreset::Custom;
+}
+
+void MainMenu::drawGraphicsTab(RenderSettings &s)
+{
+	ImGui::PushItemWidth(220.0f);
+	ImGui::SeparatorText("World");
+	ImGui::SliderInt("Render distance", &s.renderDistance, 4, 48, "%d chunks");
+	ImGui::SliderInt("Far terrain (LOD)", &s.lodDistance, 0, 6144,
+					 s.lodDistance == 0 ? "off" : "%d blocks");
+	ImGui::Checkbox("Falling leaves", &s.fallingLeaves);
 
 	ImGui::SeparatorText("Lighting");
 	ImGui::Checkbox("Shadows", &s.shadows);
@@ -133,19 +273,136 @@ void MainMenu::drawOptions(RenderSettings &s)
 	ImGui::SliderFloat("Shadow distance", &s.shadowDistance, 48.0f, 256.0f, "%.0f blocks");
 	ImGui::Checkbox("Water reflections (SSR)", &s.waterReflections);
 
-	ImGui::SeparatorText("Post-processing");
-	ImGui::SliderFloat("Exposure", &s.exposure, 0.2f, 4.0f, "%.2f");
-	ImGui::Checkbox("Bloom", &s.bloom);
-	ImGui::SliderFloat("Bloom strength", &s.bloomStrength, 0.0f, 0.3f, "%.3f");
-	ImGui::Checkbox("God rays", &s.godRays);
-	ImGui::SliderFloat("Saturation", &s.saturation, 0.0f, 2.0f, "%.2f");
-
 	ImGui::SeparatorText("Display");
+	ImGui::SliderFloat("Field of view", &s.fov, 50.0f, 110.0f, "%.0f deg");
 	ImGui::SliderFloat("Render scale", &s.renderScale, 0.5f, 1.0f, "%.2f");
 	ImGui::Checkbox("VSync", &s.vsync);
+	ImGui::Checkbox("Show FPS counter", &s.showFps);
+	ImGui::TextDisabled("F11: fullscreen   F3: debug overlay   F2: screenshot");
 	ImGui::PopItemWidth();
 
-	if(ImGui::Button("Reset to defaults"))
+	ImGui::Spacing();
+	if(ImGui::Button("Reset all settings"))
 		s = RenderSettings{};
-	ImGui::End();
+}
+
+void MainMenu::drawPerformanceTab(const DebugInfo &info)
+{
+	const Renderer::Stats &r = info.render;
+	float ms = info.fps > 0.0f ? 1000.0f / info.fps : 0.0f;
+
+	// ── FPS ─────────────────────────────────────────────────────
+	ImGui::SetWindowFontScale(1.6f);
+	ImGui::TextColored(frameColor(ms), "%.0f FPS", info.fps);
+	ImGui::SetWindowFontScale(1.0f);
+	ImGui::SameLine();
+	ImGui::TextDisabled("  %.2f ms avg   1%% low %.0f FPS   worst %.1f ms", info.frameAvgMs,
+						info.low1Fps, info.frameMaxMs);
+
+	char overlay[64];
+	std::snprintf(overlay, sizeof(overlay), "frame time (last %d frames)", DebugInfo::HISTORY);
+	ImGui::PlotLines("##frametime", info.frameMs.data(), DebugInfo::HISTORY, info.historyHead,
+					 overlay, 0.0f, std::max(20.0f, info.frameMaxMs * 1.1f),
+					 ImVec2(ImGui::GetContentRegionAvail().x, 80));
+
+	// ── GPU par passe ───────────────────────────────────────────
+	ImGui::SeparatorText("GPU");
+	if(r.gpuMs > 0.0f)
+		{
+			ImGui::Text("GPU frame: %.2f ms", r.gpuFrameMs);
+			for(int i = 0; i < Renderer::PASS_COUNT; ++i)
+				{
+					char label[64];
+					std::snprintf(label, sizeof(label), "%s  %.2f ms", Renderer::passName(i),
+								  r.passMs[i]);
+					ImGui::ProgressBar(r.gpuMs > 0.0f ? r.passMs[i] / r.gpuMs : 0.0f,
+									   ImVec2(-1.0f, 0.0f), label);
+				}
+			ImGui::TextDisabled("Apple GPUs overlap passes: per-pass times are approximate.");
+		}
+	else
+		ImGui::TextDisabled("GPU timestamps not supported on this device.");
+
+	// ── CPU ─────────────────────────────────────────────────────
+	ImGui::SeparatorText("CPU (ms)");
+	if(beginInfoTable("##cpu"))
+		{
+			row("Frame (drawFrame)", "%.2f", r.drawFrameMs);
+			row("  waiting for GPU", "%.2f", r.fenceWaitMs);
+			row("  command recording", "%.3f", r.recordMs);
+			row("World streaming", "%.3f", info.worldUpdateMs);
+			row("Mesh uploads", "%.3f", info.uploadMs);
+			row("Interface", "%.3f", info.uiMs);
+			ImGui::EndTable();
+		}
+
+	// ── Scène ───────────────────────────────────────────────────
+	ImGui::SeparatorText("Scene");
+	if(beginInfoTable("##scene"))
+		{
+			row("Draw calls", "%u", r.drawCalls);
+			row("Triangles", "%.2f M", r.triangles / 1e6);
+			row("Shadow map triangles", "%.2f M (%u updates)", r.shadowTriangles / 1e6,
+				r.shadowUpdates);
+			row("Chunks on GPU / visible", "%d / %d", r.chunks, r.drawnChunks);
+			row("Shadow casters", "%d", r.shadowChunks);
+			row("Chunk meshes memory", "%zu MB", r.gpuMemoryMB);
+			row("Far terrain tiles", "%d (%d visible, %zu MB)", info.lodTiles,
+				r.drawnLodTiles, r.lodMemoryMB);
+			row("Falling leaves", "%d", info.particles);
+			row("Render resolution", "%u x %u", r.renderExtent.width, r.renderExtent.height);
+			row("Output resolution", "%u x %u", r.swapchainExtent.width, r.swapchainExtent.height);
+			ImGui::EndTable();
+		}
+
+	// ── Monde ───────────────────────────────────────────────────
+	ImGui::SeparatorText("World");
+	if(beginInfoTable("##world"))
+		{
+			row("Chunks loaded / meshed", "%d / %d", info.chunksLoaded, info.chunksMeshed);
+			row("Pending jobs", "%zu (%u threads)", info.pendingJobs, info.workerThreads);
+			row("Render radius", "%d chunks (%d blocks)", info.renderRadius, info.renderRadius * 16);
+			row("Position", "%.1f, %.1f, %.1f", info.position.x, info.position.y, info.position.z);
+			row("Biome", "%s", info.biome.c_str());
+			ImGui::EndTable();
+		}
+}
+
+void MainMenu::drawSystemTab(const DebugInfo &info)
+{
+	const Renderer::DeviceInfo &d = info.device;
+	ImGui::SeparatorText("Graphics");
+	if(beginInfoTable("##gpu"))
+		{
+			row("GPU", "%s", d.gpuName.c_str());
+			row("Vulkan API", "%s", d.apiVersion.c_str());
+			row("Driver", "%s", d.driverVersion.c_str());
+			row("Present mode", "%s", d.presentMode.c_str());
+			row("Swapchain", "%s, %u images", d.swapchainFormat.c_str(), d.swapchainImages);
+			row("Shadow map", "%d x %d", d.shadowResolution, d.shadowResolution);
+			ImGui::EndTable();
+		}
+	ImGui::SeparatorText("Display");
+	if(beginInfoTable("##display"))
+		{
+			row("Window", "%d x %d%s", info.windowW, info.windowH,
+				info.fullscreen ? " (fullscreen)" : "");
+			row("Monitor", "%d x %d @ %d Hz", info.monitorW, info.monitorH, info.monitorHz);
+			ImGui::EndTable();
+		}
+	ImGui::SeparatorText("Engine");
+	if(beginInfoTable("##engine"))
+		{
+			row("CPU threads", "%u", info.cpuThreads);
+			row("World worker threads", "%u", info.workerThreads);
+#ifdef NDEBUG
+			row("Build", "Release");
+#else
+			row("Build", "Debug");
+#endif
+			row("Compiler", "%s", __VERSION__);
+			row("Uptime", "%.0f s", info.uptime);
+			row("ImGui", "%s", IMGUI_VERSION);
+			ImGui::EndTable();
+		}
 }

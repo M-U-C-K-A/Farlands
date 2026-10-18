@@ -146,8 +146,8 @@ vec3 skyAmbient(vec3 n)
     sky /= 6.0;
     float skyVis = 0.62 + 0.38 * n.y;
     // Rebond du sol éclairé par le soleil (albédo moyen ~ 0.25)
-    vec3 ground = u.sunColor.rgb * max(u.sunDir.y, 0.0) * (0.25 / PI);
-    return (sky * skyVis + ground * (0.5 - 0.5 * n.y)) * 1.25;
+    vec3 ground = u.sunColor.rgb * max(u.sunDir.y, 0.0) * (0.25 / PI) * (1.0 - 0.7 * u.grade.w);
+    return overcast(sky * skyVis + ground * (0.5 - 0.5 * n.y)) * 1.25;
 }
 #endif
 
@@ -189,7 +189,8 @@ float cloudShadow(vec3 world)
     vec3 L = u.sunDir.xyz;
     float t = (0.5 * (CLOUD_BOTTOM + CLOUD_TOP) - world.y) / max(L.y, 0.08);
     float d = cloudDensity(world + L * t, false);
-    return mix(1.0, 0.35, saturate(d * 2.5));
+    // Ciel couvert : les nuages bloquent bien plus le soleil
+    return mix(1.0, mix(0.35, 0.08, u.grade.w), saturate(d * 2.5));
 }
 
 // Marche dans la couche de nuages : rgb = lumière diffusée, a = transmittance
@@ -235,7 +236,7 @@ vec4 marchClouds(vec3 ro, vec3 rd, float maxDist, int steps, int lightSteps,
             vec3 sunL = u.sunColor.rgb * 2.5 * beer * mix(1.0, powder, 0.55) * phase;
             float h = (p.y - CLOUD_BOTTOM) / (CLOUD_TOP - CLOUD_BOTTOM);
             vec3 amb = ambient * mix(0.55, 1.1, h);
-            vec3 S = (sunL + amb) * d * sigma;
+            vec3 S = (sunL + amb) * d * sigma * u.grade.z;
             float dT = exp(-d * sigma * dt);
             scatter += T * S * (1.0 - dT) / max(d * sigma, 1e-5);
             T *= dT;

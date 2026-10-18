@@ -28,6 +28,7 @@ class VkSwapchain
 	}
 	VkImage getImage(uint32_t index) const { return m_images[index]; }
 	bool supportsTransferSrc() const { return m_supportsTransferSrc; }
+	VkPresentModeKHR getPresentMode() const { return m_presentMode; }
 	/// Le format est sRGB : la conversion gamma est faite par le matériel
 	bool isSrgb() const;
 
@@ -37,6 +38,7 @@ class VkSwapchain
 	VkFormat m_imageFormat = VK_FORMAT_UNDEFINED;
 	VkExtent2D m_extent{};
 	bool m_supportsTransferSrc = false;
+	VkPresentModeKHR m_presentMode = VK_PRESENT_MODE_FIFO_KHR;
 	std::vector<VkImageView> m_imageViews;
 	std::vector<VkFramebuffer> m_framebuffers;
 
