@@ -9,7 +9,7 @@
 #include <filesystem>
 
 // ── Construction ────────────────────────────────────────────────
-World::World(uint32_t seed) : m_generator(seed)
+World::World(uint32_t seed, bool amplified) : m_generator(seed, amplified)
 {
 	unsigned hw = std::thread::hardware_concurrency();
 	unsigned workers = hw > 3 ? hw - 2 : 2;
@@ -79,6 +79,7 @@ bool World::isColumnLoaded(int wx, int wz) const
 // ── Update (thread principal) ───────────────────────────────────
 void World::update(const glm::vec3 &playerPos)
 {
+	flushEdits();
 	glm::ivec2 pc(floorDiv(static_cast<int>(std::floor(playerPos.x)), CHUNK_SIZE_X),
 				  floorDiv(static_cast<int>(std::floor(playerPos.z)), CHUNK_SIZE_Z));
 	if(!m_centerValid || pc != m_center)
@@ -158,26 +159,27 @@ void World::unloadFar()
 			auto ms = m_meshState.find(pos);
 			if(ms != m_meshState.end())
 				{
+					// Un remaillage en cours peut laisser l'ancien mesh affiché
+					m_events.push_back({pos, nullptr});
 					if(ms->second == MeshState::Done)
-						{
-							m_events.push_back({pos, nullptr});
-							m_meshedCount--;
-						}
+						m_meshedCount--;
 					m_meshState.erase(ms);
 				}
+			m_meshVersion.erase(pos);
 		}
 }
 
 void World::tryScheduleMesh(const glm::ivec2 &pos)
 {
-	auto it = m_chunks.find(pos);
-	if(it == m_chunks.end())
-		return;
-	auto ms = m_meshState.find(pos);
-	if(ms != m_meshState.end())
+	if(m_meshState.count(pos))
 		return; // déjà maillé ou en cours
-	if(!inRadius(pos, m_radius + 0.5f))
-		return;
+	scheduleMesh(pos, false);
+}
+
+bool World::scheduleMesh(const glm::ivec2 &pos, bool urgent)
+{
+	if(!m_chunks.count(pos) || !inRadius(pos, m_radius + 0.5f))
+		return false;
 
 	ChunkNeighborhood n;
 	for(int dz = -1; dz <= 1; ++dz)
@@ -185,18 +187,71 @@ void World::tryScheduleMesh(const glm::ivec2 &pos)
 			{
 				auto nit = m_chunks.find(pos + glm::ivec2(dx, dz));
 				if(nit == m_chunks.end())
-					return; // un voisin manque encore
+					return false; // un voisin manque encore
 				n.chunks[(dx + 1) + (dz + 1) * 3] = nit->second;
 			}
 
+	auto ms = m_meshState.find(pos);
+	if(ms != m_meshState.end() && ms->second == MeshState::Done)
+		m_meshedCount--; // recompté à l'arrivée du nouveau mesh
 	m_meshState[pos] = MeshState::Pending;
+	uint32_t version = ++m_meshVersion[pos];
 	float dist = std::sqrt(static_cast<float>((pos.x - m_center.x) * (pos.x - m_center.x)
 											  + (pos.y - m_center.y) * (pos.y - m_center.y)));
-	m_jobs->submit(dist - 0.5f, [this, n = std::move(n)] {
+	m_jobs->submit(urgent ? -100.0f : dist - 0.5f, [this, n = std::move(n), version] {
 		auto mesh = std::make_shared<ChunkMeshData>(buildChunkMesh(n));
+		mesh->version = version;
 		std::lock_guard<std::mutex> lock(m_resultMutex);
 		m_meshResults.push_back(std::move(mesh));
 	});
+	return true;
+}
+
+bool World::setBlockAt(int wx, int wy, int wz, BlockType type)
+{
+	if(wy < 1 || wy >= CHUNK_SIZE_Y)
+		return false;
+	glm::ivec2 cpos(floorDiv(wx, CHUNK_SIZE_X), floorDiv(wz, CHUNK_SIZE_Z));
+	auto it = m_chunks.find(cpos);
+	if(it == m_chunks.end())
+		return false;
+	int lx = wx - cpos.x * CHUNK_SIZE_X, lz = wz - cpos.y * CHUNK_SIZE_Z;
+	if(it->second->getBlockUnchecked(lx, wy, lz) == type)
+		return false;
+
+	// Un chunk encore référencé par un maillage en cours est remplacé par
+	// une copie modifiée ; sinon (seul propriétaire) modification en place
+	if(it->second.use_count() > 1)
+		it->second = std::make_shared<Chunk>(*it->second);
+	it->second->setBlock(lx, wy, lz, type);
+	it->second->setModified(true);
+	m_edited.insert(cpos);
+	return true;
+}
+
+void World::flushEdits()
+{
+	if(m_edited.empty())
+		return;
+	std::unordered_set<glm::ivec2, IVec2Hash> remesh;
+	for(const glm::ivec2 &pos : m_edited)
+		{
+			auto it = m_chunks.find(pos);
+			if(it == m_chunks.end())
+				continue;
+			it->second->updateTopY(); // exclusif : aucun travail ne l'a capturé
+			for(int dz = -1; dz <= 1; ++dz)
+				for(int dx = -1; dx <= 1; ++dx)
+					{
+						glm::ivec2 p = pos + glm::ivec2(dx, dz);
+						if((dx == 0 && dz == 0) || m_meshState.count(p))
+							remesh.insert(p);
+					}
+		}
+	m_edited.clear();
+	// Remaillage prioritaire (faces, occlusion, lumière des voisins)
+	for(const glm::ivec2 &p : remesh)
+		scheduleMesh(p, true);
 }
 
 void World::drainResults()
@@ -237,6 +292,9 @@ void World::drainResults()
 			if(ms == m_meshState.end() || ms->second != MeshState::Pending
 			   || !m_chunks.count(mesh->chunkPos))
 				continue;
+			auto ver = m_meshVersion.find(mesh->chunkPos);
+			if(ver == m_meshVersion.end() || ver->second != mesh->version)
+				continue; // remplacé par un remaillage plus récent
 			ms->second = MeshState::Done;
 			m_meshedCount++;
 			m_events.push_back({mesh->chunkPos, std::move(mesh)});

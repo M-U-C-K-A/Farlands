@@ -16,6 +16,7 @@ layout(location = 5) out float vViewDepth;
 layout(location = 6) flat out uint vBlock;
 layout(location = 7) flat out uint vBlendKind;
 layout(location = 8) out float vBlendWeight;   // part du voisin autour du sommet
+layout(location = 9) out float vBlockLight;    // lumière des lanternes / torches (0..1)
 
 void main()
 {
@@ -33,4 +34,5 @@ void main()
     vBlock = v.block;
     vBlendKind = v.blendKind;
     vBlendWeight = float(v.blendCount) * 0.25;
+    vBlockLight = inTint.a;
 }

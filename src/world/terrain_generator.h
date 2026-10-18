@@ -12,9 +12,11 @@
 #include "biome.h"
 #include "chunk.h"
 #include "noise.h"
+#include "structures.h"
 
 #include <cstdint>
 #include <glm/glm.hpp>
+#include <memory>
 
 /// Informations de surface d'une colonne (x, z)
 struct ColumnInfo
@@ -28,7 +30,11 @@ struct ColumnInfo
 class TerrainGenerator
 {
   public:
-	explicit TerrainGenerator(uint32_t seed = 42);
+	/// amplified : relief amplifié partout (type de monde), sinon seulement
+	/// dans les régions du biome "Amplified Peaks"
+	explicit TerrainGenerator(uint32_t seed = 42, bool amplified = false);
+	TerrainGenerator(const TerrainGenerator &) = delete;
+	TerrainGenerator &operator=(const TerrainGenerator &) = delete;
 
 	/// Remplit un chunk vide (terrain, eau, arbres, plantes, teintes)
 	void generate(Chunk &chunk) const;
@@ -58,6 +64,12 @@ class TerrainGenerator
 	bool treeNear(int wx, int wz, int radius) const;
 
 	uint32_t getSeed() const { return m_seed; }
+	bool isAmplifiedWorld() const { return m_amplifiedWorld; }
+
+	/// Poids du relief amplifié en (wx, wz) : 0 (normal) .. 1 (amplifié)
+	float amplifiedMask(int wx, int wz) const;
+	/// Structures (villages, temples...) de ce monde
+	const StructureGenerator &structures() const { return *m_structures; }
 
 	/// Hash entier déterministe (x, z, sel) -> [0, 2^32)
 	uint32_t hash(int x, int z, uint32_t salt) const;
@@ -76,6 +88,10 @@ class TerrainGenerator
 	PerlinNoise m_humidityNoise;
 	PerlinNoise m_cherryNoise;
 	PerlinNoise m_surfaceNoise;
+	PerlinNoise m_amplifiedNoise;
+	PerlinNoise m_overhangNoise;
+	bool m_amplifiedWorld = false;
+	std::unique_ptr<StructureGenerator> m_structures;
 
 	BiomeType selectBiome(int height, float temp, float humidity, int wx,
 						  int wz) const;
@@ -84,4 +100,10 @@ class TerrainGenerator
 	void placeTrees(Chunk &chunk) const;
 	void placeTree(Chunk &chunk, BiomeType biome, int wx, int baseY, int wz,
 				   uint32_t rnd) const;
+	/// Rochers moussus épars (plaines, forêts, taïga, montagnes)
+	void placeBoulders(Chunk &chunk) const;
+	/// Densité 3D du relief amplifié (> 0 : plein) : surplombs, arches
+	float overhangDensity(int wx, int y, int wz, int height, float strength) const;
+	/// Force des surplombs d'une colonne (amplifié × falaise)
+	float overhangStrength(int wx, int wz, int slope) const;
 };

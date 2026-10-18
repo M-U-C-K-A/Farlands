@@ -8,7 +8,7 @@
 
 <p align="center">
   <b>A Minecraft-style voxel engine written from scratch in C++20 and Vulkan, with a physically based HDR renderer.</b><br>
-  Sun shadows · atmospheric sky · volumetric clouds & fog · reflective water · shader presets (Realistic, Golden Hour, Horror) · far terrain up to 6 km · falling leaves · multithreaded infinite world
+  Sun & moon shadows · atmospheric sky · volumetric clouds & fog · reflective water · shader presets (Realistic, Golden Hour, Horror, Night) · villages, temples & other structures · amplified peaks · flying & building · lanterns and torches that light the world · far terrain up to 6 km · multithreaded infinite world
 </p>
 
 <p align="center">
@@ -82,14 +82,67 @@
   </tr>
 </table>
 
+### Structures, amplified peaks and nights
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/village.jpg" alt="A village in a mountain valley: plaster and timber houses, a well, dirt paths, lamp posts and a wheat field" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/village-night.jpg" alt="The same village at night under the stars, its lanterns and lamp posts casting warm light on the paths" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Village</b> — houses facing the well, paths, lamp posts, fields (5 regional styles)</sub></td>
+    <td align="center"><sub><b>Night preset</b> — moonlight, stars, lanterns lighting the paths</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/desert-temple.jpg" alt="A stepped sandstone pyramid with two obelisks at the edge of a desert dotted with cacti" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/shrine.jpg" alt="A cherry shrine at golden hour: pavilion with a tiered roof, vermilion torii gates and stone lanterns" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Desert temple</b> — stepped pyramid with a pillared hall, obelisks, cacti</sub></td>
+    <td align="center"><sub><b>Cherry shrine</b> — torii gates, stone lanterns, tiered roof (Golden Hour)</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/lighthouse-night.jpg" alt="A striped white and red lighthouse at night, its lantern room glowing above the forest" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/ruins-horror.jpg" alt="A crumbling mossy stone tower with cobwebs, half hidden in thick grey fog" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Lighthouse</b> — on the beaches, its lantern room glows at night</sub></td>
+    <td align="center"><sub><b>Ruined tower</b> — mossy bricks, rubble and cobwebs (Horror)</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/amplified.jpg" alt="Amplified Peaks: needle-like mountains covered in grassy ledges and spruces, snow on the highest tips" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/amplified-village.jpg" alt="A village at the bottom of a deep valley between towering cliffs in an amplified world" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Amplified Peaks</b> — towering spires, grassy ledges, 3D overhangs</sub></td>
+    <td align="center"><sub><b>Amplified world</b> — the whole map amplified, villages in the valleys</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/building.jpg" alt="A small lakeside gazebo built by the player with stone bricks, logs, spruce planks, a lantern and torches, the hotbar at the bottom" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/building-night.jpg" alt="The same gazebo at night, lit by its lantern and the torches on the pier" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Building</b> — break, place and pick blocks from a 9-slot hotbar</sub></td>
+    <td align="center"><sub><b>Block light</b> — lanterns and torches light their surroundings</sub></td>
+  </tr>
+</table>
+
 <table>
   <tr>
     <td width="50%"><img src="docs/assets/screenshots/sand-transition.jpg" alt="Grass fading into sand with an organic pixel-art edge instead of a hard block boundary" width="100%"></td>
-    <td width="50%"><img src="docs/assets/screenshots/menu.jpg" alt="Main menu drawn over the live world, slowly panning across the spawn vista" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/step-blend.jpg" alt="One-block steps between grass and sand: the sides of the grass blocks fade down into the sand below" width="100%"></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Surface transitions</b> — grass, sand and snow blend with a pixel-art mask</sub></td>
+    <td align="center"><sub><b>Steps</b> — the sides of a one-block step fade into the surface below</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/menu.jpg" alt="Main menu drawn over the live world, slowly panning across the spawn vista" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/world-tab.jpg" alt="The World tab of the options: teleport buttons for every structure and biome, fly speed, and a new world form with a seed and an amplified option" width="100%"></td>
+  </tr>
+  <tr>
     <td align="center"><sub><b>Main menu</b> — drawn over the live world</sub></td>
+    <td align="center"><sub><b>World tab</b> — teleport to the nearest structure or biome, new seed, amplified world</sub></td>
   </tr>
 </table>
 
@@ -111,7 +164,9 @@
 - **Water**: procedural waves, screen-space reflections with an environment fallback, refraction, Beer–Lambert absorption, sun glint, caustics, view from below
 - **Terrain shading**: normal maps derived from the textures, sky ambient light, per-vertex AO, foliage translucency, waving leaves and grass, height fog / aerial perspective
 - **Volumetric fog**: ray-marched ground mist lit through the shadow map, so sunlight streams between trees and peaks
-- **Shader presets**: Realistic, Golden Hour and Horror — sun, clouds, fog, light shafts and color grading in one click
+- **Shader presets**: Realistic, Golden Hour, Horror and Night — sun, clouds, fog, light shafts and color grading in one click
+- **Night**: the moon lights the scene through the same atmosphere model (blue sky glow, moon shadows), twinkling stars, a square moon with the square sun
+- **Block light**: lanterns, torches and jack-o'-lanterns emit light that spreads Minecraft-style (15 levels, blocked by solid blocks), smoothed per vertex; their bright texels glow and bloom
 - **Post**: bloom mip chain, god rays, ACES tonemapping, contrast / filter / shadow tint grading, vignette, dithering
 - **Far terrain (LOD)**: heightmap tiles generated straight from the world generator, out to 6 km
 - **Falling leaves and petals**: instanced particles lit by the sun, landing on the ground or floating on water
@@ -124,10 +179,13 @@
 - **Infinite** X/Z world of 16 × 256 × 16 chunks, render distance up to 48 chunks
 - **Multithreaded** streaming: a job system generates and meshes chunks in the background, nearest first
 - Terrain from Perlin fBm: continents, lakes, **ridged multifractal mountains** with domain warping, snow line and rocky cliffs
-- **10 biomes**: Ocean, Beach, Plains, Forest, Desert, Mountains, Taiga, Snowy Taiga, Cherry Grove, Snowy Peaks
-- **Trees** (oak, birch, spruce, cherry), tall grass and flowers, ores — deterministic across chunk borders
-- **27 data-driven blocks** with biome tints; procedural pixel-art textures for the new ones
-- **Smooth surface transitions** between grass, sand and snow, and irregular beach edges
+- **11 biomes**: Ocean, Beach, Plains, Forest, Desert, Mountains, Taiga, Snowy Taiga, Cherry Grove, Snowy Peaks and **Amplified Peaks** (towering spires with 3D-noise overhangs)
+- **Amplified world type**: the whole map amplified, with the usual climates in the valleys
+- **Structures**: villages (plains, taiga, cherry, snowy and desert styles: houses, well, paths, lamp posts, fields), desert temples, ruined towers, igloos, cherry shrines with torii gates, lighthouses
+- **Trees** (oak, birch, spruce, cherry), boulders, cacti, dead bushes, pumpkins, tall grass and flowers, ores — deterministic across chunk borders
+- **48 data-driven blocks** with biome tints and light levels; procedural pixel-art textures for the new ones
+- **Smooth surface transitions** between grass, sand and snow — on top faces and down the sides of steps — and irregular beach edges
+- **Any seed**: generate a new world (normal or amplified) from the World tab
 - **Scenic spawn**: the game searches for a spot with a lake in front and peaks in view
 
 </td>
@@ -137,16 +195,20 @@
 
 **🧍 Player**
 - First-person controller with frame-rate independent movement
-- Gravity, jumping, **swimming**, terminal velocity with sub-stepping
-- **Per-axis AABB collisions** (0.6 × 1.8 hitbox)
+- Gravity, jumping, **swimming**, **sprinting**, terminal velocity with sub-stepping
+- **Creative flight** (double-tap Space or F) with smooth acceleration, adjustable speed
+- **Building**: break, place and pick blocks (DDA raycast, outline on the targeted block), 9-slot hotbar; edits are saved per world
+- **Per-axis AABB collisions** (0.6 × 1.8 hitbox), zoom (C)
 
 </td>
     <td valign="top">
 
 **🛠️ Tooling**
 - **Options** window in tabs: *Shaders* (presets, sky, fog, grading), *Graphics* (distances, shadows, display), *Performance* (FPS, 1% low, frame-time graph, GPU time per pass, CPU breakdown, draw calls, triangles, memory) and *System* (GPU, Vulkan, display, build)
-- Optional in-game **FPS counter**, **F3 overlay**, **F11 borderless fullscreen**
+- *World* tab: teleport (flying) to the nearest village, temple, ruin, igloo, shrine, lighthouse or biome; new world from a seed, amplified option
+- Optional in-game **FPS counter**, **F3 overlay**, **F11 borderless fullscreen**, **F1** to hide the HUD
 - **F2 screenshots**, coloured logger, Vulkan validation layers in Debug
+- **Capture scripts** (`FARLANDS_SCRIPT`): teleport, set presets, edit blocks and take screenshots — how the pictures above were made
 - `terrain_preview` tool: renders a top-down map of the generator
 
 </td>
@@ -190,20 +252,28 @@ cmake --build build -j
 ./build/farlands
 ```
 
-The main menu is drawn over the live world while it streams in the background; click **Singleplayer** to play from the spawn vista.
+The main menu is drawn over the live world while it streams in the background; click **Singleplayer** to play from the spawn vista, or **World...** to jump straight to a village, a temple or the Amplified Peaks.
 
 ### Controls
 
 | Key | Action |
 | --- | --- |
 | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> | Move |
-| <kbd>Space</kbd> | Jump · swim up |
+| <kbd>Space</kbd> | Jump · swim up · fly up |
+| <kbd>Ctrl</kbd> | Sprint · fly faster |
+| <kbd>Space</kbd> <kbd>Space</kbd> or <kbd>F</kbd> | Toggle flying (land to stop) |
+| <kbd>Shift</kbd> | Fly down |
 | Mouse | Look around |
-| <kbd>Esc</kbd> | Main menu (Options, Quit) |
+| Left / right click | Break / place a block |
+| Middle click | Pick the targeted block into the hotbar |
+| <kbd>1</kbd>–<kbd>9</kbd> · wheel | Choose the hotbar slot |
+| <kbd>C</kbd> | Zoom |
+| <kbd>Esc</kbd> | Main menu (Options, World, Quit) |
 | <kbd>Tab</kbd> | Toggle mouse capture |
 | <kbd>F2</kbd> | Screenshot → `~/.farlands/screenshots/` |
 | <kbd>F3</kbd> | Debug overlay (FPS, GPU passes, chunks, biome) |
 | <kbd>F11</kbd> | Borderless fullscreen |
+| <kbd>F1</kbd> | Hide the HUD |
 
 ### Performance tips
 
@@ -292,13 +362,29 @@ A **preset** (`applyPreset()` in `render_settings.h`) only changes the mood — 
   </picture>
 </p>
 
-A vertex is **20 bytes**: the position inside the chunk, a packed word (texture layer, normal, AO, UV corner, block id, wave flag, surface blend) and an RGBA8 biome tint.
+A vertex is **20 bytes**: the position inside the chunk, a packed word (texture layer, normal, AO, UV corner, block id, wave flag, surface blend) and an RGBA8 biome tint whose alpha byte carries the block light level.
 
 ### Surface transitions and falling leaves
 
-Top faces of grass, sand and snow store, per vertex, the neighbouring surface type and how many of the blocks around that corner use it (4 spare bits of the packed vertex word). The fragment shader turns that into a blend weight and thresholds it with a pixel-art noise (16 texels per block plus large-scale noise); both faces of a boundary use the same field, so the pattern stays continuous across blocks. Beach edges also follow a noise instead of a contour line.
+Top faces of grass, sand and snow store, per vertex, the neighbouring surface type and its share of the blocks around that corner, in quarters (5 spare bits of the packed vertex word). The sides of a one-block step get the same treatment: their top edge matches the top face, their bottom edge the complement seen from the surface below, so the pattern runs down the step without a seam. The fragment shader turns that into a blend weight and thresholds it with a pixel-art noise (16 texels per block plus large-scale noise); both faces of a boundary use the same field, so the pattern stays continuous across blocks. Beach edges also follow a noise instead of a contour line.
 
 `LeafParticles` probes random blocks around the camera: cherry and broad leaves with air below spawn petals and leaves that tumble in the wind, land on the ground or float on water, then fade out. They are drawn as one instanced draw call with a procedural, pixelated leaf shape, shadows and translucency.
+
+### Structures
+
+The world is cut into 192 × 192 regions; each region hashes the seed into at most one **site** — a jittered point whose biome picks the structure (village, desert temple, ruined tower, igloo, cherry shrine or lighthouse) after a few terrain checks (dry land, gentle slopes, sea nearby for a lighthouse). The site is cheap to evaluate, so trees and boulders can avoid it. Its **blueprint** — every block, with a mode: *set*, *fill* (foundations only replace air, water or plants), *clear* (interiors) or *soft clear* (plants above paths) — is computed once from the heightmap and cached; each chunk then stamps the part that falls inside it. Buildings are written in local coordinates with their door on −Z and rotated to face the village well; houses get stone foundations down to the slope, gable roofs, windows, a ceiling lantern and sometimes a chimney.
+
+### Amplified terrain
+
+`amplifiedMask()` marks rare regions (or the whole world) where the heightmap is replaced by a sharper, taller ridged multifractal, still softly compressed below the world ceiling. On slopes, a 3D Perlin density (`overhangDensity()`) adds and removes stone around the surface — overhangs, arches, notches in the cliffs — then the surface layers are rebuilt under every opening, so ledges get grass and dirt. Flat valleys and plateaus keep the plain heightmap, which keeps villages and trees on solid ground. The far terrain uses the heightmap only.
+
+### Block light and nights
+
+Blocks with a `light` level in `blocks.json` (lantern, jack-o'-lantern 15, torch 14) are listed per chunk. When a chunk is meshed, the light of every source within 15 blocks — in the chunk or its 8 neighbours — is flood-filled through non-opaque blocks, losing one level per block; each vertex averages the cells around its corner (smooth lighting) and stores the level in the alpha byte of its tint. The fragment shader turns it into warm light (`0.8^(15 − level)`) and adds an emissive term on the bright texels of the light blocks. The **Night** preset swaps the sun for the moon: same direction maths, same atmosphere LUT and shadow map, about 5 % of the intensity with a cool tint, plus stars and a moon disc in the sky pass.
+
+### Building
+
+The targeted block comes from a voxel DDA (Amanatides & Woo) along the view ray. `World::setBlockAt()` edits the chunk in place, or a copy if a meshing job still holds it, and marks it modified; edits are grouped and the chunk and its neighbours are remeshed once, ahead of the streaming queue (a version number discards stale results).
 
 ### Blocks
 
@@ -326,11 +412,15 @@ Blocks are data-driven: `BlockDatabase` loads `assets/data/blocks.json` at start
 }
 ```
 
-`renderType` is `cube`, `cross` (plants) or `liquid`; `tint` is `none`, `grass` or `foliage`. The textures of the newer blocks are generated by `scripts/gen_textures.py`.
+`renderType` is `cube`, `cross` (plants) or `liquid`; `tint` is `none`, `grass` or `foliage`; an optional `light` (0–15) makes the block a light source. The textures of the newer blocks are generated by `scripts/gen_textures.py` and `scripts/gen_structure_textures.py`:
+
+<p align="center">
+  <img src="docs/assets/structure-blocks.png" alt="The 21 structure blocks: stone bricks, mossy bricks and cobblestone, bricks, sandstone, chiseled sandstone, spruce, cherry and vermilion planks, white plaster, lantern, torch, jack-o'-lantern, pumpkin, hay bale, farmland, wheat, dirt path, cactus, dead bush and cobweb" width="80%">
+</p>
 
 ### Saving
 
-Only chunks modified by the player are written to `~/.farlands/world` (block editing is not implemented yet, so the world is regenerated from the seed). Chunks are stored x-first, then y, then z, as runs of `[type: u8][count: u16]` after a magic number and a version; older or corrupted files are simply regenerated.
+Only chunks modified by the player are written — when they unload and on exit — to `~/.farlands/world` for the default world (seed 42) and to `~/.farlands/worlds/<seed>[-amplified]` for the others; everything else is regenerated from the seed. Chunks are stored x-first, then y, then z, as runs of `[type: u8][count: u16]` after a magic number and a version; older or corrupted files are simply regenerated.
 
 <p align="center">
   <picture>
@@ -348,7 +438,8 @@ Only chunks modified by the player are written to `~/.farlands/world` (block edi
 Farlands/
 ├── src/
 │   ├── main.cpp                entry point, global exception guard
-│   ├── app.{h,cpp}             Application — window, main loop, input, HUD, scenic spawn
+│   ├── app.{h,cpp}             Application — window, main loop, input, HUD, hotbar, scenic spawn, teleports
+│   ├── app_script.cpp          capture scripts (FARLANDS_SCRIPT)
 │   ├── core/                   logger.h · types.h (Vertex, uniforms) · job_system.* · stb_*
 │   ├── renderer/
 │   │   ├── renderer.*          pass chain, chunk/LOD/particle buffers, descriptors, GPU timers, screenshots
@@ -364,9 +455,10 @@ Farlands/
 │   │   ├── world.*             streaming, job scheduling, mesh events
 │   │   ├── lod_terrain.*       far terrain tiles (LOD)
 │   │   ├── leaf_particles.*    falling leaves and petals
-│   │   ├── terrain_generator.* relief, biomes, surface, trees, plants
+│   │   ├── terrain_generator.* relief, amplified overhangs, biomes, surface, trees, boulders, plants
+│   │   ├── structures.*        structure sites, blueprints (villages, temples, ruins, igloos, shrines, lighthouses)
 │   │   ├── chunk.*             16×256×16 block storage + biome tints
-│   │   ├── chunk_mesh.*        face culling, AO, plants, water
+│   │   ├── chunk_mesh.*        face culling, AO, block light, surface blends, plants, water
 │   │   ├── chunk_serializer.*  RLE chunk files
 │   │   ├── biome.*             biome table
 │   │   ├── noise.*             Perlin noise + fBm octaves
@@ -375,7 +467,7 @@ Farlands/
 │   └── ui/                     menu.* (main menu, Options tabs, FPS counter) · debug_info.* (stats)
 ├── shaders/                    common · atmosphere · lighting (*.glsl) and the pass shaders
 ├── tools/terrain_preview.cpp   top-down map of the terrain generator
-├── scripts/gen_textures.py     procedural textures for the newer blocks
+├── scripts/                    gen_textures.py · gen_structure_textures.py (procedural block textures)
 ├── assets/                     data/blocks.json · textures/ · Farlands.png (logo)
 ├── external/                   imgui (submodule) · nlohmann/json.hpp
 └── docs/assets/                README visuals and screenshots
@@ -387,7 +479,11 @@ Farlands/
 | --- | --- | --- |
 | Graphics options | `RenderSettings` in `src/renderer/render_settings.h` (or the Options window) | render distance 20, far terrain 2048, shadows 4096², clouds 0.58 |
 | Shader presets | `applyPreset()` in `src/renderer/render_settings.h` | Realistic |
-| World seed | `m_world{42}` in `src/app.h` | 42 |
+| World seed / type | `FARLANDS_SEED`, `FARLANDS_AMPLIFIED=1`, or Options › World | 42, normal |
+| Structure density | `REGION` and `computeSite()` in `src/world/structures.cpp` | ≤ 1 per 192 × 192 region |
+| Amplified regions | `amplifiedMask()` in `src/world/terrain_generator.cpp` | rare |
+| Block light | `light` in `blocks.json`, `BLOCK_LIGHT_INTENSITY` in `shaders/terrain_body.glsl` | 15 · 2.6 |
+| Flight | `FLY_SPEED`, `FLY_SPRINT_SCALE` in `src/player/player.h` (Options › World › Fly speed) | 14 · ×3 |
 | Sea level | `SEA_LEVEL` in `src/world/biome.h` | 62 |
 | Snow line | `TerrainGenerator::getSnowLine()` | 156 ± 12 |
 | Biomes, tree and plant densities | `src/world/biome.cpp` | — |
@@ -410,15 +506,20 @@ Farlands/
 - [x] Volumetric fog with light shafts, shader presets (Realistic, Golden Hour, Horror), color grading
 - [x] Far terrain LOD up to 6 km, falling leaves, smooth grass / sand / snow transitions
 - [x] Performance and system tabs, FPS counter, F11 fullscreen
+- [x] Structures: villages in 5 styles, desert temples, ruined towers, igloos, cherry shrines, lighthouses
+- [x] Amplified Peaks biome and amplified world type, 3D overhangs; boulders, cacti, pumpkins
+- [x] Flying, sprinting, zoom; breaking and placing blocks with a hotbar, saved per world
+- [x] Block light (lanterns, torches), Night preset with moon, stars and moon shadows
+- [x] World tab: teleport to structures and biomes, new world from any seed
 
 **Next**
 
 - [ ] Greedy meshing (fewer vertices for shadows and distant terrain)
 - [ ] Cascaded shadow maps
-- [ ] Breaking and placing blocks (and saving them)
 - [ ] Caves
-- [ ] Day / night cycle, moon and stars
-- [ ] Point lights (lanterns, torches)
+- [ ] Animated day / night cycle
+- [ ] Villagers and animals
+- [ ] Stairs, slabs, doors; structures in the far terrain
 
 ---
 
@@ -455,6 +556,23 @@ Preview the terrain generator without starting the engine:
 ```bash
 cmake --build build --target terrain_preview
 ./build/terrain_preview map.png 1024 0 0 4   # output, size, center x, center z, blocks per pixel
+```
+
+Capture scripts drive the engine for screenshots and visual checks — one command per line (`wait`, `waitload`, `play`, `tp`, `look`, `fly`, `locate`, `biome`, `preset`, `set`, `setblock`, `world`, `hud`, `shot`, `stats`, `quit`; see `src/app_script.cpp`). Worlds opened by a script are never saved.
+
+```bash
+cat > /tmp/tour.txt <<'END'
+hud 0
+play
+locate village
+waitload
+shot village.png
+preset night
+wait 2
+shot village-night.png
+quit
+END
+FARLANDS_SCRIPT=/tmp/tour.txt ./build/farlands
 ```
 
 - Shaders are recompiled by CMake whenever a `.vert`, `.frag` or included `.glsl` changes. `shaders/compile.sh [out_dir]` does the same by hand.

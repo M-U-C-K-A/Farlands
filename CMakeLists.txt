@@ -90,6 +90,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 add_executable(terrain_preview EXCLUDE_FROM_ALL
     tools/terrain_preview.cpp
     src/world/terrain_generator.cpp
+    src/world/structures.cpp
     src/world/biome.cpp
     src/world/noise.cpp
     src/world/chunk.cpp

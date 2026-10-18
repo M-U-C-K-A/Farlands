@@ -67,6 +67,7 @@ void BlockDatabase::LoadFromFile(const std::string &jsonPath)
 			data.renderType = parseRenderType(b.value("renderType", "cube"));
 			data.tint = parseTint(b.value("tint", "none"));
 			data.waving = b.value("waving", false);
+			data.light = static_cast<uint8_t>(std::clamp(b.value("light", 0), 0, 15));
 
 			std::string texGeneral = b.value("texture", "");
 			data.texLayerTop = addTexture(b.value("textureTop", texGeneral));

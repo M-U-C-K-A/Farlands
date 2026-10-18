@@ -11,6 +11,7 @@
 #include <array>
 #include <cstdint>
 #include <glm/glm.hpp>
+#include <vector>
 
 constexpr int CHUNK_SIZE_X = 16;
 constexpr int CHUNK_SIZE_Y = 256;
@@ -68,7 +69,11 @@ class Chunk
 
 	/// Hauteur du plus haut bloc non vide (+1), pour borner le maillage
 	int getTopY() const { return m_topY; }
+	/// Recalcule la hauteur maximale et la liste des blocs lumineux
 	void updateTopY();
+
+	/// Blocs lumineux du chunk : x | z << 4 | y << 8
+	const std::vector<uint32_t> &getLights() const { return m_lights; }
 
 	/// Modifié par le joueur : à sauvegarder sur disque
 	bool isModified() const { return m_modified; }
@@ -84,6 +89,7 @@ class Chunk
 	std::array<BlockType, CHUNK_VOLUME> m_blocks;
 	std::array<uint32_t, CHUNK_AREA> m_grassTint;
 	std::array<uint32_t, CHUNK_AREA> m_foliageTint;
+	std::vector<uint32_t> m_lights;
 	glm::ivec2 m_chunkPos; // (chunkX, chunkZ) dans la grille monde
 	int m_topY = CHUNK_SIZE_Y;
 	bool m_modified = false;

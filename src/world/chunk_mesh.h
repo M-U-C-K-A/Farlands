@@ -18,6 +18,7 @@
 struct ChunkMeshData
 {
 	glm::ivec2 chunkPos{0};
+	uint32_t version = 0; // remaillages successifs (modifications de blocs)
 	std::vector<Vertex> vertices;
 	// Indices : opaques, puis "cutout" (feuillages, plantes, vitres), puis eau
 	std::vector<uint32_t> indices;

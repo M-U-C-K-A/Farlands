@@ -20,48 +20,87 @@ Player::Player()
 {}
 
 // ── Entrées clavier ─────────────────────────────────────────────
+void Player::setFlying(bool flying)
+{
+	if(flying == m_flying)
+		return;
+	m_flying = flying;
+	m_flyToggled = true;
+	m_flyVelocity = glm::vec3(0.0f);
+	m_velocity.y = 0.0f;
+}
+
 void Player::handleInput(GLFWwindow *window, float deltaTime,
 						 const World &world)
 {
 	glm::vec3 front = getHorizontalFront();
 	glm::vec3 right
 	  = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
+	auto down = [&](int key) { return glfwGetKey(window, key) == GLFW_PRESS; };
 
 	m_inWater = isInWater(world);
-	float speed = m_inWater ? MOVE_SPEED * WATER_SPEED_SCALE : MOVE_SPEED;
 	glm::vec3 moveDir(0.0f);
 
 	// WASD — déplacement horizontal
-	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	bool forward = down(GLFW_KEY_W);
+	if(forward)
 		moveDir += front;
-	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	if(down(GLFW_KEY_S))
 		moveDir -= front;
-	if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	if(down(GLFW_KEY_A))
 		moveDir -= right;
-	if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	if(down(GLFW_KEY_D))
 		moveDir += right;
 
 	// Normaliser pour éviter que la diagonale soit plus rapide
 	if(glm::length(moveDir) > 0.001f)
 		moveDir = glm::normalize(moveDir);
 
-	float dx = moveDir.x * speed * deltaTime;
-	float dz = moveDir.z * speed * deltaTime;
+	// ── Vol : double appui sur Espace, ou F ─────────────────
+	bool space = down(GLFW_KEY_SPACE);
+	if(space && !m_spaceWasDown)
+		{
+			double now = glfwGetTime();
+			if(now - m_lastSpacePress < DOUBLE_TAP)
+				{
+					setFlying(!m_flying);
+					m_lastSpacePress = -1.0;
+				}
+			else
+				m_lastSpacePress = now;
+		}
+	m_spaceWasDown = space;
+	bool flyKey = down(GLFW_KEY_F);
+	if(flyKey && !m_flyKeyWasDown)
+		setFlying(!m_flying);
+	m_flyKeyWasDown = flyKey;
 
-	// ── Collision par axe séparé ────────────────────────────
-	// Axe X
-	glm::vec3 newPosX = m_position;
-	newPosX.x += dx;
-	if(!collidesAt(world, newPosX))
-		m_position.x = newPosX.x;
+	bool ctrl = down(GLFW_KEY_LEFT_CONTROL) || down(GLFW_KEY_RIGHT_CONTROL);
+	m_sprinting = ctrl && forward && !m_inWater;
 
-	// Axe Z
-	glm::vec3 newPosZ = m_position;
-	newPosZ.z += dz;
-	if(!collidesAt(world, newPosZ))
-		m_position.z = newPosZ.z;
+	if(m_flying)
+		{
+			// Vitesse cible lissée (accélération / freinage progressifs)
+			float speed = FLY_SPEED * m_flySpeedMul * (ctrl ? FLY_SPRINT_SCALE : 1.0f);
+			glm::vec3 target = moveDir * speed;
+			if(space)
+				target.y += FLY_VERTICAL * m_flySpeedMul * (ctrl ? 1.8f : 1.0f);
+			if(down(GLFW_KEY_LEFT_SHIFT) || down(GLFW_KEY_RIGHT_SHIFT))
+				target.y -= FLY_VERTICAL * m_flySpeedMul * (ctrl ? 1.8f : 1.0f);
+			float k = 1.0f - std::exp(-deltaTime * 9.0f);
+			m_flyVelocity += (target - m_flyVelocity) * k;
+			moveHorizontal(m_flyVelocity.x * deltaTime, m_flyVelocity.z * deltaTime, world);
+			m_velocity.y = m_flyVelocity.y;
+			return;
+		}
 
-	bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+	float speed = MOVE_SPEED;
+	if(m_inWater)
+		speed *= WATER_SPEED_SCALE;
+	else if(m_sprinting)
+		speed *= SPRINT_SCALE;
+	moveHorizontal(moveDir.x * speed * deltaTime, moveDir.z * speed * deltaTime, world);
+
 	if(m_inWater)
 		{
 			// Nage : Espace fait remonter
@@ -73,6 +112,29 @@ void Player::handleInput(GLFWwindow *window, float deltaTime,
 			// Saut — seulement si au sol
 			m_velocity.y = JUMP_VELOCITY;
 			m_onGround = false;
+		}
+}
+
+void Player::moveHorizontal(float dx, float dz, const World &world)
+{
+	float len = std::max(std::abs(dx), std::abs(dz));
+	int steps = std::max(1, static_cast<int>(std::ceil(len / 0.45f)));
+	float sx = dx / steps, sz = dz / steps;
+	for(int i = 0; i < steps; ++i)
+		{
+			// Collision par axe séparé (glisse le long des murs)
+			glm::vec3 p = m_position;
+			p.x += sx;
+			if(!collidesAt(world, p))
+				m_position.x = p.x;
+			else if(m_flying)
+				m_flyVelocity.x = 0.0f;
+			p = m_position;
+			p.z += sz;
+			if(!collidesAt(world, p))
+				m_position.z = p.z;
+			else if(m_flying)
+				m_flyVelocity.z = 0.0f;
 		}
 }
 
@@ -88,6 +150,21 @@ void Player::handleMouseMove(double xOffset, double yOffset)
 void Player::update(float deltaTime, const World &world)
 {
 	m_inWater = isInWater(world);
+
+	// Vol : pas de gravité ; se poser au sol en descendant arrête le vol
+	if(m_flying)
+		{
+			float dy = m_velocity.y * deltaTime;
+			int steps = std::max(1, static_cast<int>(std::ceil(std::abs(dy) / 0.45f)));
+			m_onGround = false;
+			for(int i = 0; i < steps && m_velocity.y != 0.0f; ++i)
+				moveVertical(dy / static_cast<float>(steps), world);
+			if(m_velocity.y == 0.0f)
+				m_flyVelocity.y = 0.0f;
+			if(m_onGround && dy < 0.0f)
+				setFlying(false);
+			return;
+		}
 
 	// Appliquer la gravité (réduite et freinée dans l'eau)
 	if(m_inWater)

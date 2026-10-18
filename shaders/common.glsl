@@ -89,7 +89,7 @@ struct VertexData
     uint block;
     uint wave;
     uint blendKind;   // 0 aucun, 1 herbe, 2 sable, 3 neige
-    uint blendCount;  // 0..3 voisins de ce type autour du coin
+    uint blendCount;  // part du type mélangé autour du coin, en quarts (0..4)
 };
 
 VertexData unpackVertex(uint d)
@@ -102,7 +102,7 @@ VertexData unpackVertex(uint d)
     v.block = (d >> 17) & 0xFFu;
     v.wave = (d >> 25) & 3u;
     v.blendKind = (d >> 27) & 3u;
-    v.blendCount = (d >> 29) & 3u;
+    v.blendCount = (d >> 29) & 7u;
     return v;
 }
 

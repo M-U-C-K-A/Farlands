@@ -29,10 +29,11 @@ Cette roadmap détaille les étapes de développement du projet Farlands, d'un m
 - [x] **Multithreading** : génération et maillage sur un pool de threads.
 - [x] Un buffer GPU par chunk, frustum culling, destruction différée.
 
-## Phase 6 : Physique et Interaction (⏳ En partie)
-- [x] Entité **Joueur** : gravité, saut, nage, collisions AABB par axe.
-- [ ] Raycast pour casser / poser des blocs (le bloc visé est déjà calculé pour l'overlay).
-- [ ] Sauvegarde des modifications du joueur (le format de chunk est prêt).
+## Phase 6 : Physique et Interaction (✅ Terminée)
+- [x] Entité **Joueur** : gravité, saut, nage, sprint, collisions AABB par axe.
+- [x] **Vol** créatif (double Espace ou F), zoom (C).
+- [x] Raycast (DDA) pour casser / poser / choisir des blocs, barre d'inventaire à 9 cases, contour du bloc visé.
+- [x] Sauvegarde des modifications du joueur, un dossier par monde (graine, type).
 
 ## Phase 7 : Rendu Réaliste (✅ Terminée)
 - [x] Pipeline HDR, reverse-Z, rendu relatif à la caméra.
@@ -48,9 +49,19 @@ Cette roadmap détaille les étapes de développement du projet Farlands, d'un m
 - [x] Feuilles et pétales qui tombent, transitions douces herbe / sable / neige.
 - [x] Onglets Performance / Système, compteur de FPS, plein écran F11.
 
-## Phase 9 : Suite
+## Phase 9 : Structures et mondes (✅ Terminée)
+- [x] Structures : villages (5 styles : plaines, taïga, cerisiers, neige, désert), temples du désert, tours en ruine, igloos, sanctuaires des cerisiers (torii), phares.
+- [x] Biome **Amplified Peaks** (aiguilles, surplombs en bruit 3D) et type de monde amplifié.
+- [x] Rochers, cactus, buissons morts, citrouilles ; 21 nouveaux blocs (textures procédurales).
+- [x] Lumière des blocs (lanternes, torches, citrouilles-lanternes) propagée dans le maillage.
+- [x] Préréglage **Nuit** : clair de lune, ombres de la lune, étoiles.
+- [x] Onglet Monde : téléportation vers les structures et les biomes, nouveau monde depuis une graine.
+- [x] Scripts de capture (`FARLANDS_SCRIPT`) pour les captures de la documentation.
+
+## Phase 10 : Suite
 - [ ] Greedy meshing (moins de sommets pour les ombres).
 - [ ] Cascaded shadow maps.
 - [ ] Grottes.
-- [ ] Cycle jour / nuit, lune et étoiles.
-- [ ] Lumières ponctuelles (lanternes, torches).
+- [ ] Cycle jour / nuit animé.
+- [ ] Villageois et animaux.
+- [ ] Escaliers, dalles, portes ; structures visibles dans le terrain lointain.

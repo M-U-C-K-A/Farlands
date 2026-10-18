@@ -116,12 +116,17 @@ void MainMenu::draw(GLFWwindow *window, ImTextureID background, ImTextureID logo
 			m_showOptions = false;
 		}
 
+	const float third = (bw - 20.0f) / 3.0f;
 	ImGui::SetCursorPos(ImVec2(w * 0.5f - bw * 0.5f, y + 52.0f));
-	if(bigButton("Options...", ImVec2(bw * 0.5f - 5.0f, bh)))
+	if(bigButton("Options...", ImVec2(third, bh)))
 		m_showOptions = !m_showOptions;
 
-	ImGui::SetCursorPos(ImVec2(w * 0.5f + 5.0f, y + 52.0f));
-	if(bigButton("Quit Game", ImVec2(bw * 0.5f - 5.0f, bh)))
+	ImGui::SetCursorPos(ImVec2(w * 0.5f - bw * 0.5f + third + 10.0f, y + 52.0f));
+	if(bigButton("World...", ImVec2(third, bh)))
+		openOptions(4);
+
+	ImGui::SetCursorPos(ImVec2(w * 0.5f - bw * 0.5f + 2.0f * (third + 10.0f), y + 52.0f));
+	if(bigButton("Quit Game", ImVec2(third, bh)))
 		glfwSetWindowShouldClose(window, true);
 
 	// Préréglage de shaders courant, sous les boutons
@@ -181,6 +186,11 @@ void MainMenu::drawOptions(RenderSettings &s, const DebugInfo &info)
 					drawGraphicsTab(s);
 					ImGui::EndTabItem();
 				}
+			if(ImGui::BeginTabItem("World", nullptr, tabFlags(4)))
+				{
+					drawWorldTab(s, info);
+					ImGui::EndTabItem();
+				}
 			if(ImGui::BeginTabItem("Performance", nullptr, tabFlags(2)))
 				{
 					drawPerformanceTab(info);
@@ -209,7 +219,7 @@ void MainMenu::drawShadersTab(RenderSettings &s)
 			bool selected = s.preset == p;
 			if(selected)
 				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.26f, 0.45f, 0.75f, 1.0f));
-			if(ImGui::Button(presetName(p), ImVec2(140, 30)))
+			if(ImGui::Button(presetName(p), ImVec2(100, 30)))
 				{
 					applyPreset(s, p);
 					m_presetChanged = true;
@@ -227,6 +237,10 @@ void MainMenu::drawShadersTab(RenderSettings &s)
 	c |= ImGui::SliderFloat("Sun elevation", &s.sunElevation, 1.0f, 89.0f, "%.1f deg");
 	c |= ImGui::SliderFloat("Sun azimuth", &s.sunAzimuth, 0.0f, 360.0f, "%.0f deg");
 	c |= ImGui::Checkbox("Square sun", &s.squareSun);
+	ImGui::SameLine();
+	c |= ImGui::Checkbox("Night (moonlight)", &s.night);
+	if(s.night)
+		c |= ImGui::SliderFloat("Moon elevation", &s.moonElevation, 5.0f, 85.0f, "%.0f deg");
 	c |= ImGui::Checkbox("Volumetric clouds", &s.clouds);
 	c |= ImGui::SliderFloat("Cloud coverage", &s.cloudCoverage, 0.0f, 1.0f, "%.2f");
 	c |= ImGui::SliderFloat("Cloud density", &s.cloudDensity, 0.2f, 3.0f, "%.2f");
@@ -405,4 +419,65 @@ void MainMenu::drawSystemTab(const DebugInfo &info)
 			row("ImGui", "%s", IMGUI_VERSION);
 			ImGui::EndTable();
 		}
+}
+
+void MainMenu::drawWorldTab(RenderSettings &s, const DebugInfo &info)
+{
+	ImGui::SeparatorText("Explore");
+	ImGui::TextDisabled("Teleport (flying) to the nearest:");
+	const StructureType structures[] = {StructureType::Village,    StructureType::DesertTemple,
+										StructureType::Ruins,      StructureType::Igloo,
+										StructureType::Shrine,     StructureType::Lighthouse};
+	int i = 0;
+	for(StructureType t : structures)
+		{
+			if(i++ % 3 != 0)
+				ImGui::SameLine();
+			if(ImGui::Button(structureName(t), ImVec2(136, 28)))
+				{
+					m_worldRequest.kind = WorldRequest::LocateStructure;
+					m_worldRequest.structure = t;
+				}
+		}
+	const BiomeType biomes[] = {BiomeType::Amplified, BiomeType::CherryGrove, BiomeType::SnowyPeaks,
+								BiomeType::Desert, BiomeType::Taiga, BiomeType::Forest};
+	i = 0;
+	for(BiomeType b : biomes)
+		{
+			if(i++ % 3 != 0)
+				ImGui::SameLine();
+			const BiomeData &bd = getBiomeData(b);
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(bd.color.r * 0.55f, bd.color.g * 0.55f,
+														  bd.color.b * 0.55f, 0.85f));
+			if(ImGui::Button(bd.name.c_str(), ImVec2(136, 28)))
+				{
+					m_worldRequest.kind = WorldRequest::LocateBiome;
+					m_worldRequest.biome = b;
+				}
+			ImGui::PopStyleColor();
+		}
+
+	ImGui::SeparatorText("Movement");
+	ImGui::SliderFloat("Fly speed", &s.flySpeed, 0.25f, 6.0f, "x%.2f");
+	ImGui::TextDisabled("Double-tap Space or press F to fly; Ctrl to go faster.");
+
+	ImGui::SeparatorText("New world");
+	if(m_seedInput < 0)
+		{
+			m_seedInput = static_cast<int>(info.worldSeed & 0x7FFFFFFF);
+			m_amplifiedInput = info.amplifiedWorld;
+		}
+	ImGui::InputInt("Seed", &m_seedInput);
+	m_seedInput = std::max(m_seedInput, 0);
+	ImGui::SameLine();
+	if(ImGui::Button("Random"))
+		m_seedInput = static_cast<int>((static_cast<uint32_t>(glfwGetTime() * 1e6) * 2654435761u) & 0x7FFFFFFF);
+	ImGui::Checkbox("Amplified terrain everywhere", &m_amplifiedInput);
+	if(ImGui::Button("Generate world", ImVec2(200, 30)))
+		{
+			m_worldRequest.kind = WorldRequest::NewWorld;
+			m_worldRequest.seed = static_cast<uint32_t>(m_seedInput);
+			m_worldRequest.amplified = m_amplifiedInput;
+		}
+	ImGui::TextDisabled("Current: seed %u%s", info.worldSeed, info.amplifiedWorld ? " (amplified)" : "");
 }

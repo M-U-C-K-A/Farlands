@@ -34,6 +34,8 @@ namespace
 		// Éclairement solaire hors atmosphère, dans les mêmes unités que le
 		// modèle de ciel (shaders/atmosphere.glsl : SUN_INTENSITY)
 		constexpr float SUN_IRRADIANCE = 22.0f;
+		// Clair de lune relatif au soleil (exagéré : la nuit reste lisible)
+		constexpr float MOON_SCALE = 0.05f;
 
 		// Profondeur couverte par la shadow map de part et d'autre de la
 		// caméra, le long de la direction du soleil (blocs)
@@ -789,6 +791,31 @@ void Renderer::initImGui()
 											   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	m_logoId = ImGui_ImplVulkan_AddTexture(m_samplerLinearClamp, m_logo.view,
 										   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	loadBlockIcons();
+}
+
+void Renderer::loadBlockIcons()
+{
+	const auto &paths = BlockDatabase::GetTexturePaths();
+	std::unordered_map<int, VkDescriptorSet> byLayer;
+	for(int id = 1; id < static_cast<int>(BlockType::Count); ++id)
+		{
+			const BlockData &bd = BlockDatabase::Get(static_cast<BlockType>(id));
+			if(bd.renderType == RenderType::Liquid || bd.texLayerFront <= 0
+			   || bd.texLayerFront >= static_cast<int>(paths.size()))
+				continue;
+			auto it = byLayer.find(bd.texLayerFront);
+			if(it == byLayer.end())
+				{
+					m_iconImages.push_back(textures::loadTexture2D(
+					  m_context, std::string(ASSETS_DIR) + "/" + paths[bd.texLayerFront]));
+					VkDescriptorSet set = ImGui_ImplVulkan_AddTexture(
+					  m_samplerNearestClamp, m_iconImages.back().view,
+					  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+					it = byLayer.emplace(bd.texLayerFront, set).first;
+				}
+			m_blockIcons[id] = it->second;
+		}
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -912,6 +939,21 @@ void Renderer::removeLodMesh(const glm::ivec2 &tile)
 	m_lods.erase(it);
 }
 
+void Renderer::clearWorldMeshes()
+{
+	std::vector<glm::ivec2> keys;
+	for(auto &[pos, c] : m_chunks)
+		keys.push_back(pos);
+	for(auto &pos : keys)
+		removeChunkMesh(pos);
+	keys.clear();
+	for(auto &[tile, l] : m_lods)
+		keys.push_back(tile);
+	for(auto &tile : keys)
+		removeLodMesh(tile);
+	m_shadowDirty = true;
+}
+
 void Renderer::setParticles(const std::vector<ParticleInstance> &instances)
 {
 	m_pendingParticles = instances;
@@ -950,8 +992,14 @@ void Renderer::fillUniforms(FrameUniforms &u, const FrameParams &params,
 	u.invProj = glm::inverse(u.proj);
 	u.invViewProj = glm::inverse(u.viewProj);
 
-	glm::vec3 sunDir = atmosphere::sunDirection(settings.sunElevation, settings.sunAzimuth);
+	// La nuit, la lune (à l'opposé du soleil) devient la source de lumière :
+	// même modèle d'atmosphère, intensité réduite et teinte froide
+	glm::vec3 sunDir = settings.night
+						 ? atmosphere::sunDirection(settings.moonElevation, settings.sunAzimuth + 180.0f)
+						 : atmosphere::sunDirection(settings.sunElevation, settings.sunAzimuth);
 	glm::vec3 trans = atmosphere::sunTransmittance(sunDir);
+	const float lightScale = settings.night ? MOON_SCALE : 1.0f;
+	const glm::vec3 lightTint = settings.night ? glm::vec3(0.78f, 0.88f, 1.12f) : glm::vec3(1.0f);
 
 	// ── Matrice de la shadow map (relative à la caméra, recalée texel) ──
 	float dist = settings.shadowDistance;
@@ -983,8 +1031,8 @@ void Renderer::fillUniforms(FrameUniforms &u, const FrameParams &params,
 	  = m_shadowMatrix * glm::translate(glm::mat4(1.0f), glm::vec3(camPos - m_shadowOrigin));
 
 	u.cameraPos = glm::vec4(cam.getPosition(), params.time);
-	u.sunDir = glm::vec4(sunDir, 1.0f);
-	u.sunColor = glm::vec4(trans * SUN_IRRADIANCE, 1.0f);
+	u.sunDir = glm::vec4(sunDir, lightScale);
+	u.sunColor = glm::vec4(trans * SUN_IRRADIANCE * lightScale * lightTint, 1.0f);
 	u.fogParams = glm::vec4(0.0011f * settings.fogDensity, 0.012f, params.viewDistance,
 							params.underwater ? 1.0f : 0.0f);
 	u.waterFog = glm::vec4(0.02f, 0.10f, 0.12f, 0.06f);
@@ -1007,7 +1055,7 @@ void Renderer::fillUniforms(FrameUniforms &u, const FrameParams &params,
 	u.grade = glm::vec4(settings.contrast, settings.vignette, settings.cloudBrightness,
 						overcastAmount);
 	u.colorFilter = glm::vec4(settings.colorFilter, settings.squareSun ? 1.0f : 0.0f);
-	u.shadowTint = glm::vec4(settings.shadowTint, 0.0f);
+	u.shadowTint = glm::vec4(settings.shadowTint, settings.night ? 1.0f : 0.0f);
 	u.blendLayers = glm::vec4(BlockDatabase::Get(BlockType::Grass).texLayerTop,
 							  BlockDatabase::Get(BlockType::Sand).texLayerTop,
 							  BlockDatabase::Get(BlockType::Snow).texLayerTop, 0.0f);
@@ -1501,6 +1549,9 @@ void Renderer::cleanup()
 	for(GpuImage *img : {&m_skyLut, &m_skyEnv, &m_cloudNoise, &m_panorama, &m_logo,
 						 &m_blockTex.albedo, &m_blockTex.normal})
 		vkutil::destroyImage(device, *img);
+	for(GpuImage &img : m_iconImages)
+		vkutil::destroyImage(device, img);
+	m_iconImages.clear();
 
 	for(VkSampler s : {m_samplerBlocks, m_samplerLinearClamp, m_samplerLinearRepeat,
 					   m_samplerSky, m_samplerNearestClamp, m_samplerShadow})

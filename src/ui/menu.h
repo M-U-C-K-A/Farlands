@@ -10,6 +10,26 @@
 #include "debug_info.h"
 #include "imgui.h"
 #include "renderer/render_settings.h"
+#include "world/biome.h"
+#include "world/structures.h"
+
+#include <cstdint>
+
+/// Action demandée depuis l'onglet Monde (traitée par l'application)
+struct WorldRequest
+{
+	enum Kind
+	{
+		None,
+		LocateStructure, // téléportation vers la structure la plus proche
+		LocateBiome,     // ... vers le biome le plus proche
+		NewWorld         // nouveau monde (graine, type)
+	} kind = None;
+	StructureType structure = StructureType::None;
+	BiomeType biome = BiomeType::Plains;
+	uint32_t seed = 0;
+	bool amplified = false;
+};
 
 /// Gère l'état et le rendu du menu principal via ImGui.
 class MainMenu
@@ -30,7 +50,7 @@ class MainMenu
 
 	bool optionsOpen() const { return m_showOptions; }
 	/// Ouvre la fenêtre d'options sur un onglet (0 Shaders, 1 Graphics,
-	/// 2 Performance, 3 System)
+	/// 2 Performance, 3 System, 4 World)
 	void openOptions(int tab)
 	{
 		m_showOptions = true;
@@ -46,8 +66,19 @@ class MainMenu
 		return c;
 	}
 
+	/// Action de l'onglet Monde en attente ; remise à None après lecture
+	WorldRequest consumeWorldRequest()
+	{
+		WorldRequest r = m_worldRequest;
+		m_worldRequest = WorldRequest{};
+		return r;
+	}
+
   private:
 	bool m_active = true;
+	WorldRequest m_worldRequest;
+	int m_seedInput = -1; // -1 : initialisée depuis le monde courant
+	bool m_amplifiedInput = false;
 	bool m_showOptions = false;
 	bool m_presetChanged = false;
 	int m_forceTab = -1;
@@ -57,4 +88,5 @@ class MainMenu
 	void drawGraphicsTab(RenderSettings &s);
 	void drawPerformanceTab(const DebugInfo &info);
 	void drawSystemTab(const DebugInfo &info);
+	void drawWorldTab(RenderSettings &s, const DebugInfo &info);
 };

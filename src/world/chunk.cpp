@@ -35,4 +35,10 @@ void Chunk::updateTopY()
 						m_topY = y + 1;
 						break;
 					}
+	m_lights.clear();
+	for(int z = 0; z < CHUNK_SIZE_Z; ++z)
+		for(int y = 0; y < m_topY; ++y)
+			for(int x = 0; x < CHUNK_SIZE_X; ++x)
+				if(BlockDatabase::LightLevel(m_blocks[getIndex(x, y, z)]) > 0)
+					m_lights.push_back(static_cast<uint32_t>(x | (z << 4) | (y << 8)));
 }

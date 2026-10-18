@@ -79,7 +79,8 @@ vec3 atmosphere(vec3 rd, vec3 sunDir, int iSteps, int jSteps)
         totalM += odStepM * attn;
         iTime += iStep;
     }
-    return SUN_INTENSITY * (phaseRayleigh(mu) * BETA_RAYLEIGH * totalR
+    // sunDir.w : échelle de la source (1 soleil, ~0.03 lune)
+    return SUN_INTENSITY * u.sunDir.w * (phaseRayleigh(mu) * BETA_RAYLEIGH * totalR
                             + phaseHG(mu, G_MIE) * BETA_MIE * totalM);
 }
 

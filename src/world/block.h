@@ -42,6 +42,28 @@ enum class BlockType : uint8_t
 	Poppy = 24,
 	Cornflower = 25,
 	Pink_Tulip = 26,
+	// Structures et décor
+	Stone_Bricks = 27,
+	Mossy_Stone_Bricks = 28,
+	Mossy_Cobblestone = 29,
+	Sandstone = 30,
+	Chiseled_Sandstone = 31,
+	Spruce_Planks = 32,
+	Cherry_Planks = 33,
+	Vermilion_Planks = 34,
+	Lantern = 35, // lumineux
+	Torch = 36,   // lumineux
+	Hay_Bale = 37,
+	Farmland = 38,
+	Wheat = 39,
+	Dirt_Path = 40,
+	Bricks = 41,
+	Cobweb = 42,
+	Dead_Bush = 43,
+	Cactus = 44,
+	Pumpkin = 45,
+	Jack_O_Lantern = 46, // lumineux
+	White_Plaster = 47,
 	Count
 };
 
@@ -72,6 +94,7 @@ struct BlockData
 	RenderType renderType = RenderType::Cube;
 	TintType tint = TintType::None;
 	bool waving = false; // ondule au vent (feuillages, plantes)
+	uint8_t light = 0;   // lumière émise (0..15, propagée par le maillage)
 
 	// Texture indices into the global texture array
 	int texLayerFront = 0;
@@ -100,6 +123,7 @@ class BlockDatabase
 	/// Raccourcis
 	static bool IsTransparent(BlockType type) { return Get(type).isTransparent; }
 	static bool IsSolid(BlockType type) { return Get(type).isSolid; }
+	static uint8_t LightLevel(BlockType type) { return Get(type).light; }
 	/// Cube plein et opaque : cache entièrement les faces voisines
 	static bool IsOpaqueCube(BlockType type)
 	{

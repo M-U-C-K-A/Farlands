@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // Fichier : noise.h
-// Rôle : Implémentation du bruit de Perlin avec support des octaves.
+// Rôle : Implémentation du bruit de Perlin (2D, 3D) avec support des octaves.
 // Utilisé pour la génération procédurale du terrain.
 // -----------------------------------------------------------------------------
 #pragma once
@@ -15,6 +15,8 @@ class PerlinNoise
 
 	/// Bruit Perlin 2D brut, sortie dans [-1, 1]
 	float noise(float x, float y) const;
+	/// Bruit Perlin 3D brut, sortie dans [-1, 1] (surplombs du relief amplifié)
+	float noise3(float x, float y, float z) const;
 
 	/// Bruit avec octaves (fBm — Fractional Brownian Motion)
 	/// @param x, y     Coordonnées monde
@@ -32,4 +34,5 @@ class PerlinNoise
 	float fade(float t) const;
 	float lerp(float a, float b, float t) const;
 	float grad(int hash, float x, float y) const;
+	static float grad3(int hash, float x, float y, float z);
 };

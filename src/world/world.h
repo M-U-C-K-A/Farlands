@@ -37,7 +37,7 @@ struct IVec2Hash
 class World
 {
   public:
-	explicit World(uint32_t seed = 42);
+	explicit World(uint32_t seed = 42, bool amplified = false);
 	~World();
 
 	/// Évènement pour le renderer : nouveau mesh, ou suppression si mesh == null
@@ -68,6 +68,12 @@ class World
 	/// Le chunk contenant la colonne (wx, wz) est-il chargé ?
 	bool isColumnLoaded(int wx, int wz) const;
 
+	/// Modifie un bloc (le joueur casse / pose). Le chunk est copié s'il est
+	/// partagé avec un maillage en cours, marqué modifié (sauvegardé) ; les
+	/// remaillages (chunk et voisins : lumière, occlusion) sont regroupés et
+	/// lancés en priorité au prochain update().
+	bool setBlockAt(int wx, int wy, int wz, BlockType type);
+
 	int getChunkCount() const { return static_cast<int>(m_chunks.size()); }
 	int getMeshedCount() const { return m_meshedCount; }
 	size_t getPendingJobs() const { return m_jobs->pending(); }
@@ -97,6 +103,8 @@ class World
 	std::unordered_map<glm::ivec2, std::shared_ptr<Chunk>, IVec2Hash> m_chunks;
 	std::unordered_set<glm::ivec2, IVec2Hash> m_genPending;
 	std::unordered_map<glm::ivec2, MeshState, IVec2Hash> m_meshState;
+	std::unordered_map<glm::ivec2, uint32_t, IVec2Hash> m_meshVersion;
+	std::unordered_set<glm::ivec2, IVec2Hash> m_edited; // à remailler
 	std::deque<MeshEvent> m_events;
 
 	// ── Résultats des threads de travail ────────────────────────
@@ -114,6 +122,9 @@ class World
 	void unloadFar();
 	void drainResults();
 	void tryScheduleMesh(const glm::ivec2 &pos);
+	void flushEdits();
+	/// Lance le maillage (voisins requis) ; urgent : passe devant la file
+	bool scheduleMesh(const glm::ivec2 &pos, bool urgent);
 	bool inRadius(const glm::ivec2 &pos, float radius) const;
 
 	// Déclaré en dernier : détruit (threads joints) avant le reste

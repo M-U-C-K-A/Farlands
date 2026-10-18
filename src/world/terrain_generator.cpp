@@ -41,13 +41,40 @@ namespace
 	}
 
 // ── Constructeur ────────────────────────────────────────────────
-TerrainGenerator::TerrainGenerator(uint32_t seed)
+TerrainGenerator::TerrainGenerator(uint32_t seed, bool amplified)
 	: m_seed(seed), m_continentNoise(seed), m_erosionNoise(seed + 1),
 	  m_ridgeNoise(seed + 2), m_detailNoise(seed + 3), m_hillNoise(seed + 4),
 	  m_lakeNoise(seed + 5), m_tempNoise(seed + 100),
 	  m_humidityNoise(seed + 200), m_cherryNoise(seed + 300),
-	  m_surfaceNoise(seed + 400)
+	  m_surfaceNoise(seed + 400), m_amplifiedNoise(seed + 500),
+	  m_overhangNoise(seed + 600), m_amplifiedWorld(amplified),
+	  m_structures(std::make_unique<StructureGenerator>(*this))
 {}
+
+// ── Relief amplifié ─────────────────────────────────────────────
+float TerrainGenerator::amplifiedMask(int wx, int wz) const
+{
+	if(m_amplifiedWorld)
+		return 1.0f;
+	float n = m_amplifiedNoise.octaveNoise(wx * 0.0011f, wz * 0.0011f, 3, 2.0f, 0.5f);
+	return smoothstep(0.20f, 0.32f, n);
+}
+
+float TerrainGenerator::overhangStrength(int wx, int wz, int slope) const
+{
+	// Seulement sur les pentes : vallées et plateaux restent praticables
+	return 1.25f * amplifiedMask(wx, wz) * smoothstep(1.5f, 5.0f, static_cast<float>(slope));
+}
+
+float TerrainGenerator::overhangDensity(int wx, int y, int wz, int height, float strength) const
+{
+	float d = (height - 0.5f - y) / 20.0f;
+	if(strength <= 0.0f)
+		return d;
+	float n = m_overhangNoise.noise3(wx * 0.024f, y * 0.032f, wz * 0.024f)
+			  + 0.4f * m_overhangNoise.noise3(wx * 0.061f + 19.3f, y * 0.075f, wz * 0.061f - 7.1f);
+	return d + n * strength;
+}
 
 // ── Hash ────────────────────────────────────────────────────────
 uint32_t TerrainGenerator::hash(int x, int z, uint32_t salt) const
@@ -134,9 +161,29 @@ int TerrainGenerator::getHeightAt(int wx, int wz) const
 			h += m * (std::pow(sum, 1.35f) * 175.0f + 10.0f);
 		}
 
+	// Pics amplifiés : multifractale plus haute et plus abrupte, vallées
+	// profondes entre les aiguilles (seulement sur les terres émergées)
+	float amp = amplifiedMask(wx, wz) * smoothstep(-0.14f, 0.04f, c);
+	if(amp > 0.0f)
+		{
+			float ax = x + hills * 45.0f + 913.0f, az = z + detail * 30.0f - 377.0f;
+			float sum = 0.0f, a = 0.6f, freq = 0.0068f, weight = 1.0f;
+			for(int i = 0; i < 5; ++i)
+				{
+					float n = 1.0f - std::abs(m_ridgeNoise.noise(ax * freq, az * freq));
+					n *= n * weight;
+					weight = std::clamp(n * 2.0f, 0.0f, 1.0f);
+					sum += n * a;
+					a *= 0.5f;
+					freq *= 2.1f;
+				}
+			float spires = SEA_LEVEL + 3.0f + std::pow(sum, 1.55f) * 225.0f + hills * 16.0f;
+			h = mix(h, std::max(spires, SEA_LEVEL - 6.0f), amp);
+		}
+
 	// Lacs : cuvettes au fond des vallées (moins marqués en montagne)
 	float l = m_lakeNoise.octaveNoise(x * 0.0050f, z * 0.0050f, 3, 2.0f, 0.5f);
-	float lake = smoothstep(0.14f, 0.38f, l) * (1.0f - m * 0.9f);
+	float lake = smoothstep(0.14f, 0.38f, l) * (1.0f - m * 0.9f) * (1.0f - amp * 0.7f);
 	if(lake > 0.0f)
 		{
 			float bottom = SEA_LEVEL - 3.0f - 7.0f * smoothstep(0.3f, 0.5f, l);
@@ -163,6 +210,9 @@ BiomeType TerrainGenerator::selectBiome(int height, float temp, float humidity,
 		return BiomeType::Beach;
 	if(height >= getSnowLine(wx, wz))
 		return BiomeType::SnowyPeaks;
+	// Monde amplifié : climats variés dans les vallées, pics au-dessus
+	if(m_amplifiedWorld ? height > 112 : amplifiedMask(wx, wz) > 0.5f)
+		return BiomeType::Amplified;
 	if(height > 120)
 		return BiomeType::Mountains;
 
@@ -282,6 +332,12 @@ void TerrainGenerator::generate(Chunk &chunk) const
 							top = under = BlockType::Sand;
 							depth = 5;
 						}
+					else if(biome == BiomeType::Amplified && slope < 7)
+						{
+							// Pics amplifiés : corniches herbeuses jusque sur les aiguilles
+							top = BlockType::Grass;
+							under = slope >= 3 ? BlockType::Stone : BlockType::Dirt;
+						}
 					else if(slope >= 4)
 						{
 							// Falaise : roche nue
@@ -337,7 +393,76 @@ void TerrainGenerator::generate(Chunk &chunk) const
 					for(int y = h; y < SEA_LEVEL; ++y)
 						chunk.setBlock(x, y, z, BlockType::Water);
 
+					// ── Relief amplifié : surplombs et arches ──
+					int surfaceY = h - 1;
+					float strength = h > SEA_LEVEL ? overhangStrength(wx, wz, slope) : 0.0f;
+					if(strength > 0.01f)
+						{
+							int y0 = std::max(SEA_LEVEL - 6, h - 32);
+							int y1 = std::min(CHUNK_SIZE_Y - 12, h + 26);
+							for(int y = y1; y >= y0; --y)
+								{
+									bool solid = overhangDensity(wx, y, wz, h, strength) > 0.0f;
+									BlockType cur = chunk.getBlockUnchecked(x, y, z);
+									bool curSolid = cur != BlockType::Air && cur != BlockType::Water;
+									if(solid && !curSolid)
+										chunk.setBlock(x, y, z, BlockType::Stone);
+									else if(!solid && curSolid)
+										chunk.setBlock(x, y, z, y < SEA_LEVEL ? BlockType::Water : BlockType::Air);
+								}
+							// Couches de surface recalculées sous chaque ouverture
+							int depth = 0;
+							bool wet = false;
+							surfaceY = -1;
+							for(int y = y1; y >= y0; --y)
+								{
+									BlockType cur = chunk.getBlockUnchecked(x, y, z);
+									if(cur == BlockType::Air || cur == BlockType::Water)
+										{
+											depth = 0;
+											wet = cur == BlockType::Water;
+											continue;
+										}
+									if(surfaceY < 0)
+										surfaceY = y;
+									if(depth <= 3)
+										{
+											BlockType nb = BlockType::Stone;
+											if(wet)
+												nb = depth == 0 ? BlockType::Gravel : BlockType::Stone;
+											else if(depth < grassLayers)
+												nb = top;
+											else
+												nb = under == BlockType::Sand ? BlockType::Sand
+													 : under == BlockType::Dirt ? BlockType::Dirt
+																				: BlockType::Stone;
+											chunk.setBlock(x, y, z, nb);
+										}
+									depth++;
+								}
+							if(surfaceY < 0)
+								surfaceY = y0 - 1;
+						}
+
+					// ── Désert : cactus et buissons morts ─────
+					if(biome == BiomeType::Desert && top == BlockType::Sand && h > SEA_LEVEL + 1
+					   && h + 3 < CHUNK_SIZE_Y)
+						{
+							float r = hash01(wx, wz, 23);
+							if(r < 0.0045f && (wx + wz) % 2 == 0)
+								{
+									int tall = 1 + static_cast<int>(hash(wx, wz, 29) % 3u);
+									for(int k = 0; k < tall; ++k)
+										chunk.setBlock(x, h + k, z, BlockType::Cactus);
+								}
+							else if(r < 0.014f)
+								chunk.setBlock(x, h, z, BlockType::Dead_Bush);
+						}
+
 					// ── Végétation basse ──────────────────────
+					h = surfaceY + 1;
+					if(surfaceY >= 0 && chunk.getBlockUnchecked(x, surfaceY, z) != BlockType::Grass)
+						continue;
 					if(top == BlockType::Grass && h < CHUNK_SIZE_Y)
 						{
 							const BiomeData &bd = getBiomeData(biome);
@@ -358,12 +483,78 @@ void TerrainGenerator::generate(Chunk &chunk) const
 									chunk.setBlock(x, h, z,
 												   BlockType::Short_Grass);
 								}
+							else if(r > 0.9993f
+									&& (biome == BiomeType::Plains || biome == BiomeType::Forest))
+								chunk.setBlock(x, h, z, BlockType::Pumpkin);
 						}
 				}
 		}
 
 	placeTrees(chunk);
+	placeBoulders(chunk);
+	m_structures->place(chunk);
 	chunk.updateTopY();
+}
+
+// ── Rochers ─────────────────────────────────────────────────────
+void TerrainGenerator::placeBoulders(Chunk &chunk) const
+{
+	constexpr int CELL = 21, REACH = 3;
+	glm::ivec3 origin = chunk.toWorldPos(0, 0, 0);
+	for(int cx = floorDiv(origin.x - REACH, CELL); cx <= floorDiv(origin.x + CHUNK_SIZE_X + REACH, CELL); ++cx)
+		for(int cz = floorDiv(origin.z - REACH, CELL); cz <= floorDiv(origin.z + CHUNK_SIZE_Z + REACH, CELL); ++cz)
+			{
+				uint32_t rnd = hash(cx, cz, 31);
+				int wx = cx * CELL + static_cast<int>(rnd % CELL);
+				int wz = cz * CELL + static_cast<int>((rnd >> 8) % CELL);
+				ColumnInfo col = getColumn(wx, wz);
+				float p = 0.0f;
+				switch(col.biome)
+					{
+					case BiomeType::Plains: p = 0.10f; break;
+					case BiomeType::Forest: p = 0.16f; break;
+					case BiomeType::Taiga: p = 0.30f; break;
+					case BiomeType::SnowyTaiga: p = 0.18f; break;
+					case BiomeType::Mountains: p = 0.30f; break;
+					case BiomeType::CherryGrove: p = 0.10f; break;
+					case BiomeType::Amplified: p = 0.25f; break;
+					default: break;
+					}
+				if(hash01(cx, cz, 37) >= p || col.height <= SEA_LEVEL + 1)
+					continue;
+				int h = col.height;
+				if(std::abs(getHeightAt(wx + 2, wz) - h) > 1 || std::abs(getHeightAt(wx - 2, wz) - h) > 1
+				   || std::abs(getHeightAt(wx, wz + 2) - h) > 1 || std::abs(getHeightAt(wx, wz - 2) - h) > 1)
+					continue;
+				if(m_structures->occupied(wx, wz))
+					continue;
+
+				float r = 1.1f + ((rnd >> 16) & 255u) / 255.0f * 1.4f;
+				bool mossy = col.biome != BiomeType::Mountains && col.biome != BiomeType::SnowyTaiga;
+				for(int dx = -REACH; dx <= REACH; ++dx)
+					for(int dz = -REACH; dz <= REACH; ++dz)
+						for(int dy = -1; dy <= 3; ++dy)
+							{
+								int lx = wx + dx - origin.x, lz = wz + dz - origin.z, y = h + dy;
+								if(lx < 0 || lx >= CHUNK_SIZE_X || lz < 0 || lz >= CHUNK_SIZE_Z || y >= CHUNK_SIZE_Y)
+									continue;
+								float fy = (dy + 0.3f) / (r * 0.8f);
+								float d = (dx * dx + dz * dz) / (r * r) + fy * fy;
+								float jag = (hash01(wx + dx, wz + dz, 41 + dy) - 0.5f) * 0.35f;
+								if(d > 1.0f + jag)
+									continue;
+								BlockType cur = chunk.getBlockUnchecked(lx, y, lz);
+								if(dy >= 0 && cur != BlockType::Air && !isPlant(cur))
+									continue;
+								uint32_t m = hash(wx + dx, (wz + dz) * 31 + dy, 43) % 100u;
+								BlockType b = m < 40 ? BlockType::Stone
+											  : m < 70 ? BlockType::Cobblestone
+														: (mossy ? BlockType::Mossy_Cobblestone : BlockType::Gravel);
+								if(dy == 2 && mossy && m < 60)
+									b = BlockType::Mossy_Cobblestone;
+								chunk.setBlock(lx, y, lz, b);
+							}
+			}
 }
 
 // ── Arbres ──────────────────────────────────────────────────────
@@ -396,7 +587,8 @@ bool TerrainGenerator::treeInCell(int cx, int cz, int &wx, int &wz,
 	const BiomeData &bd = getBiomeData(col.biome);
 	if(bd.treeDensity <= 0.0f || hash01(cx, cz, 9) >= bd.treeDensity)
 		return false;
-	if(col.height <= SEA_LEVEL + 1 || col.height > TREE_LINE)
+	int treeLine = col.biome == BiomeType::Amplified ? getSnowLine(wx, wz) - 8 : TREE_LINE;
+	if(col.height <= SEA_LEVEL + 1 || col.height > treeLine)
 		return false;
 
 	// Pas d'arbre sur une pente raide
@@ -406,7 +598,8 @@ bool TerrainGenerator::treeInCell(int cx, int cz, int &wx, int &wz,
 	   || std::abs(getHeightAt(wx, wz + 1) - h) > 1
 	   || std::abs(getHeightAt(wx, wz - 1) - h) > 1)
 		return false;
-	return true;
+	// Pas d'arbre dans les villages et autres structures
+	return !m_structures->occupied(wx, wz);
 }
 
 bool TerrainGenerator::treeNear(int wx, int wz, int radius) const
@@ -460,6 +653,9 @@ void TerrainGenerator::placeTree(Chunk &chunk, BiomeType biome, int wx,
 		case BiomeType::Mountains: kind = Kind::Spruce; break;
 		case BiomeType::CherryGrove:
 			kind = (rnd % 100) < 85 ? Kind::Cherry : Kind::Oak;
+			break;
+		case BiomeType::Amplified:
+			kind = (rnd % 100) < 60 ? Kind::Spruce : Kind::Oak;
 			break;
 		default: kind = Kind::Oak; break;
 		}

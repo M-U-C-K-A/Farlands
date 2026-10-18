@@ -81,6 +81,38 @@ float PerlinNoise::noise(float x, float y) const
 	return lerp(x1, x2, v);
 }
 
+// Gradient pseudo-aléatoire 3D (12 directions des arêtes d'un cube)
+float PerlinNoise::grad3(int hash, float x, float y, float z)
+{
+	int h = hash & 15;
+	float u = h < 8 ? x : y;
+	float v = h < 4 ? y : (h == 12 || h == 14 ? x : z);
+	return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+}
+
+// Bruit Perlin 3D brut
+float PerlinNoise::noise3(float x, float y, float z) const
+{
+	float fx = std::floor(x), fy = std::floor(y), fz = std::floor(z);
+	int xi = static_cast<int>(fx) & 255;
+	int yi = static_cast<int>(fy) & 255;
+	int zi = static_cast<int>(fz) & 255;
+	float xf = x - fx, yf = y - fy, zf = z - fz;
+	float u = fade(xf), v = fade(yf), w = fade(zf);
+
+	int a = m_perm[xi] + yi, aa = m_perm[a] + zi, ab = m_perm[a + 1] + zi;
+	int b = m_perm[xi + 1] + yi, ba = m_perm[b] + zi, bb = m_perm[b + 1] + zi;
+
+	float x1 = lerp(grad3(m_perm[aa], xf, yf, zf), grad3(m_perm[ba], xf - 1, yf, zf), u);
+	float x2 = lerp(grad3(m_perm[ab], xf, yf - 1, zf), grad3(m_perm[bb], xf - 1, yf - 1, zf), u);
+	float y1 = lerp(x1, x2, v);
+	x1 = lerp(grad3(m_perm[aa + 1], xf, yf, zf - 1), grad3(m_perm[ba + 1], xf - 1, yf, zf - 1), u);
+	x2 = lerp(grad3(m_perm[ab + 1], xf, yf - 1, zf - 1),
+			  grad3(m_perm[bb + 1], xf - 1, yf - 1, zf - 1), u);
+	float y2 = lerp(x1, x2, v);
+	return lerp(y1, y2, w);
+}
+
 // Bruit avec octaves (fBm)
 float PerlinNoise::octaveNoise(float x, float y, int octaves,
 							   float lacunarity, float persistence) const
