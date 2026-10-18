@@ -19,11 +19,51 @@ layout(location = 3) in float vAO;
 layout(location = 4) in vec3 vTint;
 layout(location = 5) in float vViewDepth;
 layout(location = 6) flat in uint vBlock;
+layout(location = 7) flat in uint vBlendKind;
+layout(location = 8) in float vBlendWeight;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out float outDepth;
 
 bool isLeaves(uint b) { return b == 7u || b == 17u || b == 19u || b == 21u; }
+
+const uint BLOCK_GRASS = 2u, BLOCK_SAND = 8u, BLOCK_SNOW = 15u;
+
+uint blendBlockId(uint kind)
+{
+    return kind == 1u ? BLOCK_GRASS : (kind == 2u ? BLOCK_SAND : BLOCK_SNOW);
+}
+
+float hash12(vec2 p)
+{
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+// Transition douce entre deux surfaces (herbe/sable/neige) sur le dessus des
+// blocs : masque en pixel art (16 texels par bloc) + bruit à grande échelle.
+// Les deux faces d'une frontière utilisent le même champ "A" (type d'id le
+// plus petit), ce qui rend le motif continu d'un bloc à l'autre.
+vec3 surfaceBlend(vec3 selfAlbedo, vec3 world)
+{
+    if (vBlendKind == 0u || vNormal != 2u) return selfAlbedo;
+    uint partnerId = blendBlockId(vBlendKind);
+    float layer = vBlendKind == 1u ? u.blendLayers.x : (vBlendKind == 2u ? u.blendLayers.y : u.blendLayers.z);
+    vec3 partner = texture(blockAlbedo, vec3(vUV.xy, layer)).rgb;
+    if (partnerId == BLOCK_GRASS) partner *= vTint;
+
+    vec2 texel = floor(world.xz * 16.0);
+    float fine = hash12(texel);
+    float coarse = texture(cloudNoise, vec3(world.xz * 0.11, 0.37)).a;
+    float n = clamp(0.5 + (fine - 0.5) * 0.45 + (coarse - 0.5) * 1.1, 0.0, 1.0);
+
+    bool selfIsA = vBlock < partnerId;
+    float aness = selfIsA ? 1.0 - vBlendWeight : vBlendWeight;
+    bool showA = n < aness;
+    bool showPartner = selfIsA ? !showA : showA;
+    return showPartner ? partner : selfAlbedo;
+}
 
 void main()
 {
@@ -31,7 +71,10 @@ void main()
 #ifdef CUTOUT
     if (albedoSample.a < 0.5) discard;
 #endif
-    vec3 albedo = albedoSample.rgb * vTint;
+    // La teinte ne s'applique qu'à l'herbe pour les faces en transition
+    bool tintSelf = vBlendKind == 0u || vBlock == BLOCK_GRASS;
+    vec3 albedo = albedoSample.rgb * (tintSelf ? vTint : vec3(1.0));
+    albedo = surfaceBlend(albedo, worldPos(vRel));
 
     bool plant = vNormal == 6u;
     bool leaves = isLeaves(vBlock);

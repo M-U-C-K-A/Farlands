@@ -152,6 +152,31 @@ namespace pipelines
 					  = static_cast<uint32_t>(attrs.size());
 					vertexInput.pVertexAttributeDescriptions = attrs.data();
 				}
+			// Particules : un quad (6 sommets générés) par instance de 32 octets
+			VkVertexInputBindingDescription instBinding{0, 32, VK_VERTEX_INPUT_RATE_INSTANCE};
+			VkVertexInputAttributeDescription instAttrs[3] = {
+			  {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
+			  {1, 0, VK_FORMAT_R8G8B8A8_UNORM, 16},
+			  {2, 0, VK_FORMAT_R32G32B32_SFLOAT, 20}};
+			VkVertexInputBindingDescription lodBinding{0, 20, VK_VERTEX_INPUT_RATE_VERTEX};
+			VkVertexInputAttributeDescription lodAttrs[3] = {
+			  {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0},
+			  {1, 0, VK_FORMAT_R8G8B8A8_SNORM, 12},
+			  {2, 0, VK_FORMAT_R8G8B8A8_UNORM, 16}};
+			if(desc.lodVertices)
+				{
+					vertexInput.vertexBindingDescriptionCount = 1;
+					vertexInput.pVertexBindingDescriptions = &lodBinding;
+					vertexInput.vertexAttributeDescriptionCount = 3;
+					vertexInput.pVertexAttributeDescriptions = lodAttrs;
+				}
+			if(desc.particleInstances)
+				{
+					vertexInput.vertexBindingDescriptionCount = 1;
+					vertexInput.pVertexBindingDescriptions = &instBinding;
+					vertexInput.vertexAttributeDescriptionCount = 3;
+					vertexInput.pVertexAttributeDescriptions = instAttrs;
+				}
 
 			VkPipelineInputAssemblyStateCreateInfo inputAsm{};
 			inputAsm.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

@@ -61,17 +61,20 @@ void main()
     if (u.post.z > 0.5)
         color += godRays(vUV);
 
-    // Exposition (calibrée pour un éclairement solaire de 22)
-    color *= u.post.x * 0.5;
+    // Exposition (calibrée pour un éclairement solaire de 22) + filtre
+    color *= u.post.x * 0.5 * u.colorFilter.rgb;
     color = acesFitted(color);
 
-    // Saturation et léger contraste
+    // Teinte des tons sombres, saturation, contraste
     float l = luminance(color);
+    color = mix(color * u.shadowTint.rgb, color, smoothstep(0.0, 0.55, l));
+    l = luminance(color);
     color = max(mix(vec3(l), color, u.post.w), 0.0);
+    color = max((color - 0.45) * u.grade.x + 0.45, 0.0);
 
-    // Vignettage doux
+    // Vignettage
     vec2 q = vUV - 0.5;
-    color *= 1.0 - dot(q, q) * 0.35;
+    color *= saturate(1.0 - dot(q, q) * u.grade.y * 1.6);
 
     if (u.misc.x < 0.5)
         color = pow(color, vec3(1.0 / 2.2));      // pas de sRGB matériel

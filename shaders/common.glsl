@@ -25,6 +25,11 @@ layout(set = 0, binding = 0) uniform FrameUBO
     vec4 clouds;        // x couverture, y densité, z vitesse, w activé
     vec4 shadow;        // x 1/res, y distance, z normal offset, w activé
     vec4 misc;          // x sRGB matériel, y near (<0 : SSR coupé), z far, w frame
+    vec4 blendLayers;   // couches de texture des transitions : x herbe, y sable, z neige
+    vec4 volumetric;    // x densité de la brume, y hauteur, z rayons, w distance max
+    vec4 grade;         // x contraste, y vignettage, z luminosité nuages, w ciel couvert
+    vec4 colorFilter;   // rgb filtre, w soleil carré
+    vec4 shadowTint;    // rgb teinte des tons sombres
 } u;
 
 layout(push_constant) uniform Push
@@ -45,6 +50,9 @@ layout(push_constant) uniform Push
 #define B_HDR_COLOR    9
 #define B_BLOOM        10
 #define B_CLOUDS       11
+#define B_FINAL_DEPTH  12
+#define B_HDR_RAW      13
+#define B_VOLUMETRIC   14
 
 const float PI = 3.14159265359;
 const float SKY_DEPTH = 1.0e6;   // profondeur linéaire écrite par le ciel
@@ -63,6 +71,14 @@ float luminance(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
 vec3 worldPos(vec3 rel) { return rel + u.cameraPos.xyz; }
 
+// Ciel couvert : la lumière diffuse et la brume virent au gris (un ciel
+// couvert reste lumineux : la luminance est conservée)
+vec3 overcast(vec3 c)
+{
+    vec3 grey = vec3(luminance(c)) * vec3(0.95, 0.97, 1.0);
+    return mix(c, grey, u.grade.w);
+}
+
 // ── Décodage du Vertex compact (voir src/core/types.h) ─────────
 struct VertexData
 {
@@ -72,6 +88,8 @@ struct VertexData
     vec2 uv;
     uint block;
     uint wave;
+    uint blendKind;   // 0 aucun, 1 herbe, 2 sable, 3 neige
+    uint blendCount;  // 0..3 voisins de ce type autour du coin
 };
 
 VertexData unpackVertex(uint d)
@@ -83,6 +101,8 @@ VertexData unpackVertex(uint d)
     v.uv = vec2(float((d >> 15) & 1u), float((d >> 16) & 1u));
     v.block = (d >> 17) & 0xFFu;
     v.wave = (d >> 25) & 3u;
+    v.blendKind = (d >> 27) & 3u;
+    v.blendCount = (d >> 29) & 3u;
     return v;
 }
 

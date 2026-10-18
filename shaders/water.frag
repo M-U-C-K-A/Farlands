@@ -16,6 +16,7 @@ layout(location = 1) flat in uint vNormal;
 layout(location = 2) in float vViewDepth;
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out float outDepth;   // profondeur finale (brume volumétrique)
 
 // Somme de vagues directionnelles : retourne la normale (espace monde)
 vec3 waveNormal(vec2 p, float t, float strength)
@@ -104,6 +105,7 @@ void main()
         vec3 color = (dot(Rt, Rt) > 0.0) ? envRadiance(Rt) * 0.8 : deep;
         color = mix(color, deep, 1.0 - exp(-viewDist * u.waterFog.a));
         outColor = vec4(color, 1.0);
+        outDepth = vViewDepth;
         return;
     }
 
@@ -155,4 +157,5 @@ void main()
 
     color = applyFog(color, vRel, viewDist);
     outColor = vec4(color, 1.0);
+    outDepth = vViewDepth;
 }

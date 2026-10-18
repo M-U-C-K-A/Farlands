@@ -122,6 +122,7 @@ void VkSwapchain::createSwapChain(VkContext &ctx, GLFWwindow *window,
 							m_images.data());
 	m_imageFormat = surfaceFormat.format;
 	m_extent = extent;
+	m_presentMode = presentMode;
 
 	const char *modeName = presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR ? "immediate"
 						   : presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox"

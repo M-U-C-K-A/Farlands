@@ -34,7 +34,9 @@ struct PipelineDesc
 	std::string frag;
 	VkRenderPass renderPass = VK_NULL_HANDLE;
 	uint32_t colorCount = 1;
-	bool chunkVertices = false; // entrée = Vertex des chunks
+	bool chunkVertices = false;     // entrée = Vertex des chunks
+	bool particleInstances = false; // entrée = ParticleInstance (par instance)
+	bool lodVertices = false;       // entrée = LodVertex (terrain lointain)
 	VkCullModeFlags cull = VK_CULL_MODE_NONE;
 	bool depthTest = false;
 	bool depthWrite = false;

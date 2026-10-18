@@ -16,12 +16,46 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <thread>
 
 // Callback pour ajuster le viewport Vulkan lors d'un resize de fenêtre GLFW
 void Application::framebufferResizeCallback(GLFWwindow *window, int, int)
 {
 	auto app = reinterpret_cast<Application *>(glfwGetWindowUserPointer(window));
 	app->m_renderer.framebufferResized = true;
+}
+
+// Changement d'échelle (passage sur un écran Retina, plein écran)
+void Application::contentScaleCallback(GLFWwindow *window, float, float)
+{
+	auto app = reinterpret_cast<Application *>(glfwGetWindowUserPointer(window));
+	app->m_renderer.framebufferResized = true;
+}
+
+// Plein écran sans bordure sur l'écran principal, ou retour au fenêtré
+void Application::toggleFullscreen()
+{
+	if(!m_fullscreen)
+		{
+			glfwGetWindowPos(m_window, &m_windowedX, &m_windowedY);
+			glfwGetWindowSize(m_window, &m_windowedW, &m_windowedH);
+			GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+			const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+			glfwSetWindowMonitor(m_window, monitor, 0, 0, mode->width, mode->height,
+								 mode->refreshRate);
+			m_fullscreen = true;
+			LOG_NOTE("Fullscreen " << mode->width << "x" << mode->height << " @ "
+								   << mode->refreshRate << " Hz");
+		}
+	else
+		{
+			glfwSetWindowMonitor(m_window, nullptr, m_windowedX, m_windowedY, m_windowedW,
+								 m_windowedH, GLFW_DONT_CARE);
+			m_fullscreen = false;
+			LOG_NOTE("Windowed " << m_windowedW << "x" << m_windowedH);
+		}
+	m_renderer.framebufferResized = true;
+	m_firstMouse = true;
 }
 
 // Callback souris — route les mouvements vers le Player FPS
@@ -94,6 +128,7 @@ void Application::initWindow()
 	glfwSetWindowUserPointer(m_window, this);
 	glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
 	glfwSetCursorPosCallback(m_window, cursorPosCallback);
+	glfwSetWindowContentScaleCallback(m_window, contentScaleCallback);
 	LOG_SUCCESS("Window initialized successfully.");
 }
 
@@ -186,6 +221,7 @@ void Application::findScenicSpawn()
 	glm::vec3 front(std::cos(bestAngle), 0.0f, std::sin(bestAngle));
 	float viewAzimuth = glm::degrees(std::atan2(front.x, front.z));
 	m_settings.sunAzimuth = std::fmod(viewAzimuth + 145.0f + 360.0f, 360.0f);
+	m_spawnSunAzimuth = m_settings.sunAzimuth;
 
 	double ms = std::chrono::duration<double, std::milli>(
 				  std::chrono::steady_clock::now() - start)
@@ -193,6 +229,52 @@ void Application::findScenicSpawn()
 	LOG_INFO("Scenic spawn at (" << bestPos.x << ", " << m_spawnPos.y << ", " << bestPos.y
 								 << "), yaw " << m_spawnYaw << ", score " << bestScore
 								 << " (" << ms << " ms)");
+}
+
+// ── Préréglages de shaders ──────────────────────────────────────
+// Golden Hour / Horreur : soleil devant la caméra (contre-jour, rayons dans
+// la brume) ; Réaliste : soleil derrière, comme au point d'apparition.
+void Application::onPresetChanged()
+{
+	if(m_settings.preset == ShaderPreset::Realistic)
+		{
+			m_settings.sunAzimuth = m_spawnSunAzimuth;
+			return;
+		}
+	glm::vec3 f = m_camera.getFront();
+	float viewAzimuth = glm::degrees(std::atan2(f.x, f.z));
+	float offset = m_settings.preset == ShaderPreset::GoldenHour ? 12.0f : -8.0f;
+	m_settings.sunAzimuth = std::fmod(viewAzimuth + offset + 720.0f, 360.0f);
+}
+
+// ── Données de l'interface (onglets Performance / Système) ──────
+void Application::updateDebugInfo(float time)
+{
+	DebugInfo &d = m_debug;
+	d.chunksLoaded = m_world.getChunkCount();
+	d.chunksMeshed = m_world.getMeshedCount();
+	d.pendingJobs = m_world.getPendingJobs();
+	d.workerThreads = m_world.getWorkerCount();
+	d.renderRadius = m_world.getRenderRadius();
+	d.position = m_gameStarted ? m_player.getPosition() : m_camera.getPosition();
+	ColumnInfo col = m_world.getGenerator().getColumn(static_cast<int>(std::floor(d.position.x)),
+													  static_cast<int>(std::floor(d.position.z)));
+	d.biome = getBiomeData(col.biome).name;
+	d.render = m_renderer.getStats();
+	d.lodTiles = d.render.lodTiles;
+	d.cpuThreads = std::thread::hardware_concurrency();
+	glfwGetWindowSize(m_window, &d.windowW, &d.windowH);
+	if(const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor()))
+		{
+			d.monitorW = mode->width;
+			d.monitorH = mode->height;
+			d.monitorHz = mode->refreshRate;
+		}
+	d.fullscreen = m_fullscreen;
+	d.uptime = time;
+	static int s_deviceRefresh = 0;
+	if(s_deviceRefresh++ % 60 == 0) // change rarement (VSync, ombres)
+		d.device = m_renderer.getDeviceInfo();
 }
 
 // ── Caméra ──────────────────────────────────────────────────────
@@ -304,7 +386,7 @@ void Application::drawHud(float deltaTime)
 		}
 	ImGui::Separator();
 	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
-					   "WASD move | Space jump/swim | Esc menu | Tab cursor | F2 screenshot | F3 debug");
+					   "WASD move | Space jump/swim | Esc menu | Tab cursor | F2 screenshot | F3 debug | F11 fullscreen");
 	ImGui::End();
 }
 
@@ -314,7 +396,7 @@ void Application::mainLoop()
 	auto lastTime = std::chrono::high_resolution_clock::now();
 	auto startTime = lastTime;
 	bool tabWasPressed = false, escWasPressed = false;
-	bool f2WasPressed = false, f3WasPressed = false;
+	bool f2WasPressed = false, f3WasPressed = false, f11WasPressed = false;
 
 	while(!glfwWindowShouldClose(m_window))
 		{
@@ -324,6 +406,7 @@ void Application::mainLoop()
 			float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 			float time = std::chrono::duration<float>(currentTime - startTime).count();
 			lastTime = currentTime;
+			const float rawDeltaMs = deltaTime * 1000.0f; // statistiques
 			if(deltaTime > 0.1f)
 				deltaTime = 0.1f;
 
@@ -340,6 +423,8 @@ void Application::mainLoop()
 				m_renderer.requestScreenshot(makeScreenshotPath());
 			if(edge(GLFW_KEY_F3, f3WasPressed))
 				m_showDebug = !m_showDebug;
+			if(edge(GLFW_KEY_F11, f11WasPressed))
+				toggleFullscreen();
 			if(edge(GLFW_KEY_TAB, tabWasPressed) && !m_menu.isActive())
 				setCursorCaptured(!m_cursorCaptured);
 
@@ -355,9 +440,11 @@ void Application::mainLoop()
 				}
 
 			// ── Monde : streaming autour de la caméra ───────────
+			auto tWorld = std::chrono::steady_clock::now();
 			m_world.setRenderRadius(m_settings.renderDistance);
 			glm::vec3 focus = m_gameStarted ? m_player.getPosition() : m_spawnPos;
 			m_world.update(focus);
+			auto tUpload = std::chrono::steady_clock::now();
 			for(auto &ev : m_world.takeMeshEvents(48))
 				{
 					if(ev.mesh)
@@ -365,6 +452,22 @@ void Application::mainLoop()
 					else
 						m_renderer.removeChunkMesh(ev.pos);
 				}
+			// Terrain lointain
+			m_lod.update(m_gameStarted ? m_player.getPosition() : m_spawnPos,
+						 m_settings.lodDistance, m_world.getRenderRadius());
+			for(auto &ev : m_lod.takeEvents())
+				{
+					if(ev.mesh)
+						m_renderer.setLodMesh(*ev.mesh);
+					else
+						m_renderer.removeLodMesh(ev.tile);
+				}
+			auto tEnd = std::chrono::steady_clock::now();
+			auto msBetween = [](auto a, auto b) {
+				return std::chrono::duration<float, std::milli>(b - a).count();
+			};
+			m_debug.worldUpdateMs = m_debug.worldUpdateMs * 0.9f + msBetween(tWorld, tUpload) * 0.1f;
+			m_debug.uploadMs = m_debug.uploadMs * 0.9f + msBetween(tUpload, tEnd) * 0.1f;
 
 			// Pose du joueur une fois son chunk chargé
 			if(!m_spawned && m_world.isColumnLoaded(static_cast<int>(m_spawnPos.x),
@@ -387,11 +490,28 @@ void Application::mainLoop()
 
 			updateCamera(time);
 
+			// ── Feuilles qui tombent (autour de la caméra) ──────
+			m_leaves.update(deltaTime, time, m_world, m_camera.getPosition(),
+							m_settings.fallingLeaves);
+			m_leaves.buildInstances(m_camera.getPosition(), m_particleInstances);
+			m_renderer.setParticles(m_particleInstances);
+			m_debug.particles = static_cast<int>(m_leaves.count());
+
 			// ── Interface ───────────────────────────────────────
+			auto tUi = std::chrono::steady_clock::now();
+			m_debug.pushFrame(rawDeltaMs);
+			updateDebugInfo(time);
 			m_renderer.beginImGuiFrame();
 			drawHud(deltaTime);
+			if(m_settings.showFps && !m_menu.isActive())
+				MainMenu::drawFpsCounter(m_debug);
 			m_menu.draw(m_window, 0, (ImTextureID)m_renderer.getLogoTextureId(), m_settings,
-						m_gameStarted);
+						m_gameStarted, m_debug);
+			if(m_menu.consumePresetChanged())
+				onPresetChanged();
+			m_debug.uiMs = m_debug.uiMs * 0.9f
+						   + std::chrono::duration<float, std::milli>(
+							   std::chrono::steady_clock::now() - tUi).count() * 0.1f;
 
 			// ── Rendu ───────────────────────────────────────────
 			glm::vec3 eye = m_camera.getPosition();
@@ -399,7 +519,9 @@ void Application::mainLoop()
 			params.camera = &m_camera;
 			params.time = time;
 			// Rayon effectivement chargé (le monde plafonne la distance de rendu)
-			params.viewDistance = static_cast<float>(m_world.getRenderRadius() * CHUNK_SIZE_X);
+			float chunkDist = static_cast<float>(m_world.getRenderRadius() * CHUNK_SIZE_X);
+			params.viewDistance = std::max(chunkDist, static_cast<float>(m_settings.lodDistance));
+			params.lodInnerRadius = std::max(0.0f, chunkDist - 1.2f * CHUNK_SIZE_X);
 			params.underwater = m_world.getBlockAt(static_cast<int>(std::floor(eye.x)),
 												   static_cast<int>(std::floor(eye.y)),
 												   static_cast<int>(std::floor(eye.z)))

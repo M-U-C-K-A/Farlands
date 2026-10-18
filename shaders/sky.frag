@@ -27,14 +27,30 @@ void main()
 
     // Disque solaire (assombri au bord) avec transmittance atmosphérique
     float mu = dot(dir, u.sunDir.xyz);
-    float sunAngle = 0.0048;
-    float cosR = cos(sunAngle);
-    if (mu > cosR && dir.y > -0.02)
+    if (u.colorFilter.w > 0.5)
     {
-        float r = sqrt(saturate((1.0 - mu) / (1.0 - cosR)));
-        float limb = 1.0 - 0.6 * (1.0 - sqrt(max(1.0 - r * r, 0.0)));
-        color += u.sunColor.rgb * 900.0 * limb;
+        // Soleil carré "à la Minecraft", posé en losange
+        vec3 L = u.sunDir.xyz;
+        vec3 t1 = normalize(cross(L, vec3(0.0, 1.0, 0.0)));
+        vec3 t2 = cross(t1, L);
+        vec2 pl = vec2(dot(dir, t1), dot(dir, t2));
+        if (mu > 0.0 && abs(pl.x) + abs(pl.y) < 0.045)
+            color += u.sunColor.rgb * 60.0;
+        color += u.sunColor.rgb * 0.15 * pow(saturate(mu), 64.0);
     }
+    else
+    {
+        float sunAngle = 0.0048;
+        float cosR = cos(sunAngle);
+        if (mu > cosR && dir.y > -0.02)
+        {
+            float r = sqrt(saturate((1.0 - mu) / (1.0 - cosR)));
+            float limb = 1.0 - 0.6 * (1.0 - sqrt(max(1.0 - r * r, 0.0)));
+            color += u.sunColor.rgb * 900.0 * limb;
+        }
+    }
+    // Ciel couvert : le bleu disparaît derrière la couche nuageuse
+    color = mix(color, overcast(color), 0.6);
 
     // Nuages (calculés à mi-résolution par clouds.frag)
     vec4 c = texture(cloudTex, vUV);

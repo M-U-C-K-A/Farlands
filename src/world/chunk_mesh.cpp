@@ -52,6 +52,18 @@ namespace
 			return t != BlockType::Air && d.renderType == RenderType::Cube;
 		}
 
+		// Surfaces qui se fondent l'une dans l'autre (herbe / sable / neige)
+		uint32_t blendKindOf(BlockType t)
+		{
+			switch(t)
+				{
+				case BlockType::Grass: return 1;
+				case BlockType::Sand: return 2;
+				case BlockType::Snow: return 3;
+				default: return 0;
+				}
+		}
+
 		uint32_t hashPos(int x, int y, int z)
 		{
 			uint32_t h = static_cast<uint32_t>(x) * 73856093u
@@ -185,6 +197,48 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 									Vertex v[4];
 									uint32_t ao[4] = {0, 0, 0, 0};
 
+									// ── Transition de surface (dessus seulement) ──
+									// Le type voisin (herbe/sable/neige) dont la face supérieure
+									// touche celle-ci : le shader mélange les deux textures.
+									uint32_t blendKind = 0;
+									BlockType partner = BlockType::Air;
+									// Surface de type t dont le dessus est exposé, au même
+									// niveau ou à une marche près (bords de plage en escalier)
+									auto topSurface = [&](int bx, int bz, BlockType t) {
+										for(int dy = 0; dy >= -1; --dy)
+											if(n.get(bx, y + dy, bz) == t
+											   && !BlockDatabase::IsOpaqueCube(n.get(bx, y + dy + 1, bz)))
+												return true;
+										return n.get(bx, y + 1, bz) == t
+											   && !BlockDatabase::IsOpaqueCube(n.get(bx, y + 2, bz));
+									};
+									if(f == 2 && blendKindOf(type) != 0)
+										{
+											const BlockType candidates[3] = {
+											  type == BlockType::Grass ? BlockType::Sand : BlockType::Grass,
+											  type == BlockType::Snow ? BlockType::Sand : BlockType::Snow,
+											  BlockType::Air};
+											for(BlockType cand : candidates)
+												{
+													if(cand == BlockType::Air || cand == type)
+														continue;
+													bool found = false;
+													for(int dz = -1; dz <= 1 && !found; ++dz)
+														for(int dx = -1; dx <= 1 && !found; ++dx)
+															if((dx || dz) && topSurface(x + dx, z + dz, cand))
+																found = true;
+													if(found)
+														{
+															partner = cand;
+															blendKind = blendKindOf(cand);
+															break;
+														}
+												}
+											// L'herbe teinte la texture d'herbe, quelle que soit la face
+											if(partner == BlockType::Grass)
+												faceTint = grassTint;
+										}
+
 									for(int c = 0; c < 4; ++c)
 										{
 											glm::ivec3 corner = fd.corners[c];
@@ -220,8 +274,18 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 													ao[c] = (s1 && s2) ? 3u : static_cast<uint32_t>(s1 + s2 + cc);
 												}
 
+											uint32_t blendCount = 0;
+											if(blendKind != 0)
+												{
+													int bx = corner.x ? 1 : -1;
+													int bz = corner.z ? 1 : -1;
+													blendCount = static_cast<uint32_t>(topSurface(x + bx, z, partner))
+																 + topSurface(x, z + bz, partner)
+																 + topSurface(x + bx, z + bz, partner);
+												}
 											v[c] = {p, Vertex::pack(layer, static_cast<uint32_t>(f), ao[c],
-																	FACE_U[c], FACE_V[c], typeId, wave),
+																	FACE_U[c], FACE_V[c], typeId, wave,
+																	blendKind, blendCount),
 													faceTint};
 										}
 

@@ -41,10 +41,16 @@ Cette roadmap détaille les étapes de développement du projet Farlands, d'un m
 - [x] Eau : vagues, réflexions SSR, réfraction, absorption, caustiques, vue sous l'eau.
 - [x] Bloom, god rays, tonemapping ACES.
 
-## Phase 8 : Suite
-- [ ] Greedy meshing (moins de sommets pour les ombres et le terrain lointain).
+## Phase 8 : Ambiances et horizon (✅ Terminée)
+- [x] Brouillard volumétrique avec rayons de lumière (shadow map).
+- [x] Préréglages de shaders : Réaliste, Golden Hour, Horreur (+ étalonnage des couleurs).
+- [x] Terrain lointain (LOD) jusqu'à 6 km.
+- [x] Feuilles et pétales qui tombent, transitions douces herbe / sable / neige.
+- [x] Onglets Performance / Système, compteur de FPS, plein écran F11.
+
+## Phase 9 : Suite
+- [ ] Greedy meshing (moins de sommets pour les ombres).
 - [ ] Cascaded shadow maps.
-- [ ] LOD du terrain au-delà de la distance de rendu.
 - [ ] Grottes.
 - [ ] Cycle jour / nuit, lune et étoiles.
 - [ ] Lumières ponctuelles (lanternes, torches).

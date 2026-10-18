@@ -54,7 +54,10 @@ namespace
 			B_HDR_COLOR = 9,
 			B_BLOOM = 10,
 			B_CLOUDS = 11,
-			B_COUNT = 12
+			B_FINAL_DEPTH = 12,
+			B_HDR_RAW = 13,
+			B_VOLUMETRIC = 14,
+			B_COUNT = 15
 		};
 
 		VkFormat findDepthFormat(VkContext &ctx, VkFormatFeatureFlags extra)
@@ -159,7 +162,9 @@ void Renderer::createRenderPasses()
 
 	AttachmentDesc waterDepth{m_depthFormat, LOAD, NOSTORE, DEPTH_ATT, DEPTH_ATT};
 	m_rpWater = pipelines::createRenderPass(
-	  device, {{HDR_FORMAT, DONT, STORE, UNDEF, RO}}, &waterDepth);
+	  device,
+	  {{HDR_FORMAT, DONT, STORE, UNDEF, RO}, {DEPTH_LINEAR_FORMAT, DONT, STORE, UNDEF, RO}},
+	  &waterDepth);
 
 	m_rpBloomDown = pipelines::createRenderPass(
 	  device, {{HDR_FORMAT, DONT, STORE, UNDEF, RO}}, nullptr);
@@ -270,6 +275,28 @@ void Renderer::createPipelines()
 	t.frag = "terrain_cutout.frag.spv";
 	m_pipe.terrainCutout = make(t);
 
+	PipelineDesc lod;
+	lod.vert = "lod.vert.spv";
+	lod.frag = "lod.frag.spv";
+	lod.renderPass = m_rpScene;
+	lod.colorCount = 2;
+	lod.lodVertices = true;
+	lod.cull = VK_CULL_MODE_NONE;
+	lod.depthTest = lod.depthWrite = true;
+	lod.depthOp = VK_COMPARE_OP_GREATER;
+	m_pipe.lod = make(lod);
+
+	PipelineDesc pt;
+	pt.vert = "particle.vert.spv";
+	pt.frag = "particle.frag.spv";
+	pt.renderPass = m_rpScene;
+	pt.colorCount = 2;
+	pt.particleInstances = true;
+	pt.cull = VK_CULL_MODE_NONE;
+	pt.depthTest = pt.depthWrite = true;
+	pt.depthOp = VK_COMPARE_OP_GREATER;
+	m_pipe.particles = make(pt);
+
 	PipelineDesc sky;
 	sky.vert = "fullscreen.vert.spv";
 	sky.frag = "sky.frag.spv";
@@ -283,12 +310,23 @@ void Renderer::createPipelines()
 	blit.vert = "fullscreen.vert.spv";
 	blit.frag = "blit.frag.spv";
 	blit.renderPass = m_rpWater;
+	blit.colorCount = 2;
 	m_pipe.blit = make(blit);
+
+	PipelineDesc vol;
+	vol.vert = "fullscreen.vert.spv";
+	vol.frag = "volumetric.frag.spv";
+	vol.renderPass = m_rpSky;
+	m_pipe.volumetric = make(vol);
+	vol.frag = "fog_apply.frag.spv";
+	vol.renderPass = m_rpBloomDown;
+	m_pipe.fogApply = make(vol);
 
 	PipelineDesc w;
 	w.vert = "water.vert.spv";
 	w.frag = "water.frag.spv";
 	w.renderPass = m_rpWater;
+	w.colorCount = 2;
 	w.chunkVertices = true;
 	w.cull = VK_CULL_MODE_NONE; // surface visible aussi depuis le dessous
 	w.depthTest = w.depthWrite = true;
@@ -407,8 +445,10 @@ void Renderer::createRenderTargets()
 	d.format = HDR_FORMAT;
 	m_sceneColor = vkutil::createImage(m_context, d);
 	m_hdrColor = vkutil::createImage(m_context, d);
+	m_hdrFog = vkutil::createImage(m_context, d);
 	d.format = DEPTH_LINEAR_FORMAT;
 	m_linearDepth = vkutil::createImage(m_context, d);
+	m_finalDepth = vkutil::createImage(m_context, d);
 
 	ImageDesc dd;
 	dd.width = w;
@@ -434,11 +474,15 @@ void Renderer::createRenderTargets()
 	cd.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	m_cloudTex = vkutil::createImage(m_context, cd);
 	m_fbClouds = makeFramebuffer(device, m_rpSky, {m_cloudTex.view}, cd.width, cd.height);
+	m_volumetricTex = vkutil::createImage(m_context, cd);
+	m_fbVolumetric = makeFramebuffer(device, m_rpSky, {m_volumetricTex.view}, cd.width, cd.height);
+	m_fbFogApply = makeFramebuffer(device, m_rpBloomDown, {m_hdrFog.view}, w, h);
 
 	m_fbScene = makeFramebuffer(device, m_rpScene,
 								{m_sceneColor.view, m_linearDepth.view, m_sceneDepth.view},
 								w, h);
-	m_fbWater = makeFramebuffer(device, m_rpWater, {m_hdrColor.view, m_sceneDepth.view}, w, h);
+	m_fbWater = makeFramebuffer(device, m_rpWater,
+								{m_hdrColor.view, m_finalDepth.view, m_sceneDepth.view}, w, h);
 	m_fbBloom.clear();
 	for(uint32_t m = 0; m < BLOOM_MIPS; ++m)
 		m_fbBloom.push_back(makeFramebuffer(device, m_rpBloomDown, {m_bloom.mipViews[m]},
@@ -451,6 +495,11 @@ void Renderer::destroyRenderTargets()
 	VkDevice device = m_context.getDevice();
 	vkDestroyFramebuffer(device, m_fbClouds, nullptr);
 	vkutil::destroyImage(device, m_cloudTex);
+	vkDestroyFramebuffer(device, m_fbVolumetric, nullptr);
+	vkDestroyFramebuffer(device, m_fbFogApply, nullptr);
+	vkutil::destroyImage(device, m_volumetricTex);
+	vkutil::destroyImage(device, m_hdrFog);
+	vkutil::destroyImage(device, m_finalDepth);
 	vkDestroyFramebuffer(device, m_fbScene, nullptr);
 	vkDestroyFramebuffer(device, m_fbWater, nullptr);
 	for(auto fb : m_fbBloom)
@@ -479,8 +528,13 @@ void Renderer::createDescriptors()
 		throw std::runtime_error("Failed to create descriptor pool");
 
 	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-		m_uniforms[i] = vkutil::createHostBuffer(m_context, sizeof(FrameUniforms),
-												 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		{
+			m_uniforms[i] = vkutil::createHostBuffer(m_context, sizeof(FrameUniforms),
+													 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+			m_particleBuffers[i] = vkutil::createHostBuffer(
+			  m_context, LeafParticles::MAX_PARTICLES * sizeof(ParticleInstance),
+			  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		}
 
 	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_globalLayout);
 	VkDescriptorSetAllocateInfo ai{};
@@ -523,7 +577,10 @@ void Renderer::writeDescriptors()
 	  {B_CLOUD_NOISE, m_samplerLinearRepeat, m_cloudNoise.view, RO},
 	  {B_SCENE_COLOR, m_samplerLinearClamp, m_sceneColor.view, RO},
 	  {B_LINEAR_DEPTH, m_samplerNearestClamp, m_linearDepth.view, RO},
-	  {B_HDR_COLOR, m_samplerLinearClamp, m_hdrColor.view, RO},
+	  {B_HDR_COLOR, m_samplerLinearClamp, m_hdrFog.view, RO},
+	  {B_HDR_RAW, m_samplerNearestClamp, m_hdrColor.view, RO},
+	  {B_FINAL_DEPTH, m_samplerNearestClamp, m_finalDepth.view, RO},
+	  {B_VOLUMETRIC, m_samplerLinearClamp, m_volumetricTex.view, RO},
 	  {B_BLOOM, m_samplerLinearClamp, m_bloom.mipViews[0], RO},
 	  {B_CLOUDS, m_samplerLinearClamp, m_cloudTex.view, RO},
 	};
@@ -561,7 +618,7 @@ void Renderer::writeDescriptors()
 
 	// Sources des passes de bloom
 	std::vector<VkDescriptorImageInfo> infos;
-	infos.push_back({m_samplerLinearClamp, m_hdrColor.view, RO});
+	infos.push_back({m_samplerLinearClamp, m_hdrFog.view, RO});
 	for(uint32_t m = 0; m < BLOOM_MIPS; ++m)
 		infos.push_back({m_samplerLinearClamp, m_bloom.mipViews[m], RO});
 	std::vector<VkWriteDescriptorSet> writes;
@@ -628,8 +685,31 @@ void Renderer::createCommandsAndSync()
 
 const char *Renderer::passName(int pass)
 {
-	static const char *names[] = {"sky", "shadows", "scene", "water", "bloom", "final"};
+	static const char *names[] = {"sky", "shadows", "scene", "water", "fog", "bloom", "final"};
 	return names[pass];
+}
+
+Renderer::DeviceInfo Renderer::getDeviceInfo() const
+{
+	const VkPhysicalDeviceProperties &p = m_context.getProperties();
+	DeviceInfo info;
+	info.gpuName = p.deviceName;
+	info.apiVersion = std::to_string(VK_API_VERSION_MAJOR(p.apiVersion)) + "."
+					  + std::to_string(VK_API_VERSION_MINOR(p.apiVersion)) + "."
+					  + std::to_string(VK_API_VERSION_PATCH(p.apiVersion));
+	info.driverVersion = std::to_string(VK_API_VERSION_MAJOR(p.driverVersion)) + "."
+						 + std::to_string(VK_API_VERSION_MINOR(p.driverVersion)) + "."
+						 + std::to_string(VK_API_VERSION_PATCH(p.driverVersion));
+	switch(m_swapchain.getPresentMode())
+		{
+		case VK_PRESENT_MODE_IMMEDIATE_KHR: info.presentMode = "Immediate (no vsync)"; break;
+		case VK_PRESENT_MODE_MAILBOX_KHR: info.presentMode = "Mailbox"; break;
+		default: info.presentMode = "FIFO (vsync)"; break;
+		}
+	info.swapchainFormat = m_swapchain.isSrgb() ? "BGRA8 sRGB" : "BGRA8 UNORM";
+	info.swapchainImages = m_swapchain.getImageCount();
+	info.shadowResolution = m_shadowRes;
+	return info;
 }
 
 void Renderer::readTimestamps()
@@ -797,6 +877,46 @@ void Renderer::removeChunkMesh(const glm::ivec2 &pos)
 	m_chunks.erase(it);
 }
 
+void Renderer::setLodMesh(const LodMesh &mesh)
+{
+	removeLodMesh(mesh.tile);
+	if(mesh.indices.empty())
+		return;
+	VkDeviceSize vBytes = mesh.vertices.size() * sizeof(LodVertex);
+	VkDeviceSize iBytes = mesh.indices.size() * sizeof(uint32_t);
+	GpuLod g;
+	g.buffer = vkutil::createHostBuffer(m_context, vBytes + iBytes,
+										VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+										  | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+	auto *dst = static_cast<uint8_t *>(g.buffer.mapped);
+	std::memcpy(dst, mesh.vertices.data(), vBytes);
+	std::memcpy(dst + vBytes, mesh.indices.data(), iBytes);
+	vkUnmapMemory(m_context.getDevice(), g.buffer.memory);
+	g.buffer.mapped = nullptr;
+	g.indexOffset = vBytes;
+	g.indexCount = static_cast<uint32_t>(mesh.indices.size());
+	g.tile = mesh.tile;
+	g.minY = mesh.minY;
+	g.maxY = mesh.maxY;
+	m_lodMemory += g.buffer.size;
+	m_lods[mesh.tile] = g;
+}
+
+void Renderer::removeLodMesh(const glm::ivec2 &tile)
+{
+	auto it = m_lods.find(tile);
+	if(it == m_lods.end())
+		return;
+	m_lodMemory -= it->second.buffer.size;
+	m_deletionQueue.push_back({m_frameNumber + 1, it->second.buffer});
+	m_lods.erase(it);
+}
+
+void Renderer::setParticles(const std::vector<ParticleInstance> &instances)
+{
+	m_pendingParticles = instances;
+}
+
 void Renderer::flushDeletionQueue(bool all)
 {
 	auto it = std::remove_if(m_deletionQueue.begin(), m_deletionQueue.end(),
@@ -879,6 +999,18 @@ void Renderer::fillUniforms(FrameUniforms &u, const FrameParams &params,
 					   static_cast<float>(m_frameNumber % 1024));
 	if(!settings.waterReflections)
 		u.misc.y = -cam.getNear(); // signe négatif = SSR désactivé
+	u.clouds.y = 0.045f * settings.cloudDensity;
+	u.volumetric = glm::vec4(settings.volumetricFog ? settings.volumetricDensity * 0.008f : 0.0f,
+							 settings.mistHeight, settings.lightShafts, 360.0f);
+	float overcastAmount
+	  = settings.clouds ? glm::smoothstep(0.55f, 0.95f, settings.cloudCoverage) : 0.0f;
+	u.grade = glm::vec4(settings.contrast, settings.vignette, settings.cloudBrightness,
+						overcastAmount);
+	u.colorFilter = glm::vec4(settings.colorFilter, settings.squareSun ? 1.0f : 0.0f);
+	u.shadowTint = glm::vec4(settings.shadowTint, 0.0f);
+	u.blendLayers = glm::vec4(BlockDatabase::Get(BlockType::Grass).texLayerTop,
+							  BlockDatabase::Get(BlockType::Sand).texLayerTop,
+							  BlockDatabase::Get(BlockType::Snow).texLayerTop, 0.0f);
 }
 
 void Renderer::beginPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuffer fb,
@@ -930,6 +1062,8 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 	stamp(0);
 
 	const glm::dvec3 camPos = glm::dvec3(params.camera->getPosition());
+	uint32_t drawCalls = 0;
+	uint64_t triangles = 0, shadowTriangles = 0;
 	auto pushChunk = [&](const GpuChunk &c) {
 		PushConstants pc{};
 		pc.a = glm::vec4(static_cast<float>(c.pos.x * 16.0 - camPos.x),
@@ -1003,7 +1137,8 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 			  [](const Visible &a, const Visible &b) { return a.dist2 < b.dist2; });
 	m_stats.chunks = static_cast<int>(m_chunks.size());
 	m_stats.drawnChunks = static_cast<int>(visible.size());
-	m_stats.shadowChunks = static_cast<int>(shadowCasters.size());
+	if(m_shadowRefresh)
+		m_stats.shadowChunks = static_cast<int>(shadowCasters.size());
 	m_stats.gpuMemoryMB = static_cast<size_t>(m_chunkMemory / (1024 * 1024));
 
 	// ── 1. Ciel : LUT d'atmosphère puis environnement + nuages ──
@@ -1036,6 +1171,8 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 					{
 						pushChunk(*c);
 						vkCmdDrawIndexed(cmd, c->opaqueCount, 1, 0, 0, 0);
+						drawCalls++;
+						shadowTriangles += c->opaqueCount / 3;
 					}
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipe.shadowCutout);
 			for(const GpuChunk *c : shadowCasters)
@@ -1043,6 +1180,8 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 					{
 						pushChunk(*c);
 						vkCmdDrawIndexed(cmd, c->cutoutCount, 1, c->opaqueCount, 0, 0);
+						drawCalls++;
+						shadowTriangles += c->cutoutCount / 3;
 					}
 		}
 	if(renderShadows)
@@ -1059,6 +1198,8 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 				continue;
 			pushChunk(*v.chunk);
 			vkCmdDrawIndexed(cmd, v.chunk->opaqueCount, 1, 0, 0, 0);
+			drawCalls++;
+			triangles += v.chunk->opaqueCount / 3;
 		}
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipe.terrainCutout);
 	for(const Visible &v : visible)
@@ -1067,6 +1208,61 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 				continue;
 			pushChunk(*v.chunk);
 			vkCmdDrawIndexed(cmd, v.chunk->cutoutCount, 1, v.chunk->opaqueCount, 0, 0);
+			drawCalls++;
+			triangles += v.chunk->cutoutCount / 3;
+		}
+	// Terrain lointain (masqué en deçà du rayon des vrais chunks)
+	int drawnLods = 0;
+	if(!m_lods.empty())
+		{
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipe.lod);
+			for(auto &[tile, l] : m_lods)
+				{
+					const double tileSize = LodTerrain::TILE;
+					glm::vec3 mn(static_cast<float>(tile.x * tileSize - camPos.x),
+								 static_cast<float>(l.minY - camPos.y),
+								 static_cast<float>(tile.y * tileSize - camPos.z));
+					glm::vec3 mx = mn + glm::vec3(static_cast<float>(tileSize), l.maxY - l.minY,
+												  static_cast<float>(tileSize));
+					bool inside = true;
+					for(const auto &p : planes)
+						{
+							glm::vec3 pv(p.x >= 0 ? mx.x : mn.x, p.y >= 0 ? mx.y : mn.y,
+										 p.z >= 0 ? mx.z : mn.z);
+							if(glm::dot(glm::vec3(p), pv) + p.w < 0.0f)
+								{
+									inside = false;
+									break;
+								}
+						}
+					if(!inside)
+						continue;
+					PushConstants pc{};
+					pc.a = glm::vec4(mn.x, static_cast<float>(-camPos.y), mn.z, params.lodInnerRadius);
+					vkCmdPushConstants(cmd, m_pipelineLayout,
+									   VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+									   sizeof(PushConstants), &pc);
+					VkDeviceSize zero = 0;
+					vkCmdBindVertexBuffers(cmd, 0, 1, &l.buffer.buffer, &zero);
+					vkCmdBindIndexBuffer(cmd, l.buffer.buffer, l.indexOffset, VK_INDEX_TYPE_UINT32);
+					vkCmdDrawIndexed(cmd, l.indexCount, 1, 0, 0, 0);
+					drawCalls++;
+					triangles += l.indexCount / 3;
+					drawnLods++;
+				}
+		}
+	m_stats.lodTiles = static_cast<int>(m_lods.size());
+	m_stats.drawnLodTiles = drawnLods;
+	m_stats.lodMemoryMB = static_cast<size_t>(m_lodMemory / (1024 * 1024));
+
+	if(m_particleCount)
+		{
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipe.particles);
+			VkDeviceSize zero = 0;
+			vkCmdBindVertexBuffers(cmd, 0, 1, &m_particleBuffers[m_currentFrame].buffer, &zero);
+			vkCmdDraw(cmd, 6, m_particleCount, 0, 0);
+			drawCalls++;
+			triangles += m_particleCount * 2;
 		}
 	drawFullscreen(cmd, m_pipe.sky);
 	vkCmdEndRenderPass(cmd);
@@ -1083,9 +1279,22 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 			pushChunk(*v.chunk);
 			vkCmdDrawIndexed(cmd, v.chunk->waterCount, 1,
 							 v.chunk->opaqueCount + v.chunk->cutoutCount, 0, 0);
+			drawCalls++;
+			triangles += v.chunk->waterCount / 3;
 		}
 	vkCmdEndRenderPass(cmd);
 	stamp(4);
+
+	// ── 4b. Brume volumétrique (mi-résolution) puis application ──
+	beginPass(cmd, m_rpSky, m_fbVolumetric,
+			  {std::max(1u, m_renderExtent.width / 2), std::max(1u, m_renderExtent.height / 2)},
+			  {});
+	drawFullscreen(cmd, m_pipe.volumetric);
+	vkCmdEndRenderPass(cmd);
+	beginPass(cmd, m_rpBloomDown, m_fbFogApply, m_renderExtent, {});
+	drawFullscreen(cmd, m_pipe.fogApply);
+	vkCmdEndRenderPass(cmd);
+	stamp(5);
 
 	// ── 5. Bloom : réductions puis agrandissements additifs ─────
 	VkExtent2D bloomBase{std::max(1u, m_renderExtent.width / 2),
@@ -1126,7 +1335,7 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 			vkCmdEndRenderPass(cmd);
 		}
 
-	stamp(5);
+	stamp(6);
 
 	// ── 6. Composition finale + interface ───────────────────────
 	beginPass(cmd, m_rpFinal, m_swapchain.getFramebuffers()[imageIndex],
@@ -1134,8 +1343,18 @@ void Renderer::recordFrame(VkCommandBuffer cmd, uint32_t imageIndex,
 	drawFullscreen(cmd, m_pipe.composite);
 	ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
 	vkCmdEndRenderPass(cmd);
-	stamp(6);
+	stamp(7);
 	m_queryValid[m_currentFrame] = queries != VK_NULL_HANDLE;
+
+	m_stats.drawCalls = drawCalls;
+	m_stats.triangles = triangles;
+	if(m_shadowRefresh)
+		{
+			m_stats.shadowTriangles = shadowTriangles;
+			m_stats.shadowUpdates++;
+		}
+	m_stats.renderExtent = m_renderExtent;
+	m_stats.swapchainExtent = m_swapchain.getExtent();
 
 	if(!m_screenshotPath.empty())
 		recordScreenshotCopy(cmd, imageIndex);
@@ -1153,6 +1372,18 @@ void Renderer::drawFrame(const FrameParams &params, const RenderSettings &settin
 
 	applySettings(settings);
 
+	// La taille du framebuffer peut changer sans évènement fiable (animation
+	// du plein écran macOS, changement d'écran) : vérification à chaque frame
+	{
+		int fbW = 0, fbH = 0;
+		glfwGetFramebufferSize(m_window, &fbW, &fbH);
+		VkExtent2D ext = m_swapchain.getExtent();
+		if(fbW > 0 && fbH > 0
+		   && (static_cast<uint32_t>(fbW) != ext.width
+			   || static_cast<uint32_t>(fbH) != ext.height))
+			recreateSwapchain();
+	}
+
 	auto waitStart = std::chrono::steady_clock::now();
 	vkWaitForFences(device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 	m_stats.fenceWaitMs = m_stats.fenceWaitMs * 0.9f
@@ -1161,6 +1392,12 @@ void Renderer::drawFrame(const FrameParams &params, const RenderSettings &settin
 	m_frameNumber++;
 	flushDeletionQueue(false);
 	readTimestamps();
+
+	m_particleCount = static_cast<uint32_t>(
+	  std::min(m_pendingParticles.size(), LeafParticles::MAX_PARTICLES));
+	if(m_particleCount)
+		std::memcpy(m_particleBuffers[m_currentFrame].mapped, m_pendingParticles.data(),
+					m_particleCount * sizeof(ParticleInstance));
 
 	uint32_t imageIndex;
 	VkResult result = vkAcquireNextImageKHR(device, m_swapchain.getSwapchain(), UINT64_MAX,
@@ -1219,12 +1456,14 @@ void Renderer::drawFrame(const FrameParams &params, const RenderSettings &settin
 	pi.pSwapchains = swapChains;
 	pi.pImageIndices = &imageIndex;
 	result = vkQueuePresentKHR(m_context.getPresentQueue(), &pi);
-	if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
+	// SUBOPTIMAL seul ne force pas de recréation (peut se répéter pendant
+	// une animation) : la vérification de taille ci-dessus s'en charge.
+	if(result == VK_ERROR_OUT_OF_DATE_KHR || framebufferResized)
 		{
 			framebufferResized = false;
 			recreateSwapchain();
 		}
-	else if(result != VK_SUCCESS)
+	else if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		throw std::runtime_error("Failed to present swap chain image");
 	m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	m_stats.drawFrameMs = m_stats.drawFrameMs * 0.9f
@@ -1250,6 +1489,9 @@ void Renderer::cleanup()
 	for(auto &[pos, c] : m_chunks)
 		vkutil::destroyBuffer(device, c.buffer);
 	m_chunks.clear();
+	for(auto &[tile, l] : m_lods)
+		vkutil::destroyBuffer(device, l.buffer);
+	m_lods.clear();
 	flushDeletionQueue(true);
 
 	destroyRenderTargets();
@@ -1266,10 +1508,13 @@ void Renderer::cleanup()
 
 	for(auto &ubo : m_uniforms)
 		vkutil::destroyBuffer(device, ubo);
+	for(auto &pb : m_particleBuffers)
+		vkutil::destroyBuffer(device, pb);
 	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
 
-	for(VkPipeline p : {m_pipe.skyLut, m_pipe.skyEnv, m_pipe.clouds, m_pipe.shadow, m_pipe.shadowCutout,
-						m_pipe.terrain, m_pipe.terrainCutout,
+	for(VkPipeline p : {m_pipe.skyLut, m_pipe.skyEnv, m_pipe.clouds, m_pipe.volumetric,
+						m_pipe.fogApply, m_pipe.shadow, m_pipe.shadowCutout,
+						m_pipe.terrain, m_pipe.terrainCutout, m_pipe.particles, m_pipe.lod,
 						m_pipe.sky, m_pipe.blit, m_pipe.water, m_pipe.bloomDown,
 						m_pipe.bloomUp, m_pipe.composite})
 		vkDestroyPipeline(device, p, nullptr);

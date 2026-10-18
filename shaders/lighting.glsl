@@ -84,7 +84,7 @@ vec3 applyFog(vec3 color, vec3 rel, float viewDist)
 
     // Même couleur que le ciel dans cette direction (raccord invisible au
     // bord du monde chargé, y compris vu d'en haut)
-    vec3 fogColor = skyRadiance(V);
+    vec3 fogColor = overcast(skyRadiance(V));
     // Halo du soleil dans la brume
     float mu = saturate(dot(V, u.sunDir.xyz));
     fogColor += u.sunColor.rgb * 0.012 * pow(mu, 12.0) * (1.0 - edge);

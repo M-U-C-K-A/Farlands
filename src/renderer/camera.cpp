@@ -9,7 +9,7 @@
 Camera::Camera()
 	: m_position(0.0f, 80.0f, 0.0f), m_front(0.0f, 0.0f, -1.0f),
 	  m_up(0.0f, 1.0f, 0.0f), m_fov(70.0f), m_aspectRatio(16.0f / 9.0f),
-	  m_nearPlane(0.05f), m_farPlane(6000.0f)
+	  m_nearPlane(0.05f), m_farPlane(12000.0f)
 {}
 
 void Camera::setDirection(const glm::vec3 &front)
