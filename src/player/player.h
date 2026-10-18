@@ -104,6 +104,7 @@ class Player
 	static constexpr float FLY_VERTICAL = 10.0f;    // montée / descente
 	static constexpr float FLY_SPRINT_SCALE = 3.0f; // Ctrl en vol
 	static constexpr float DOUBLE_TAP = 0.3f;       // secondes
+	static constexpr float STEP_HEIGHT = 0.55f;     // montée automatique (dalles)
 	static constexpr float MOUSE_SENSITIVITY = 0.1f;
 	static constexpr float PLAYER_HEIGHT = 1.8f;
 	static constexpr float EYE_HEIGHT = 1.62f;

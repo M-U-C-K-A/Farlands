@@ -20,6 +20,16 @@ static RenderType parseRenderType(const std::string &s)
 		return RenderType::Cross;
 	if(s == "liquid")
 		return RenderType::Liquid;
+	if(s == "stairs")
+		return RenderType::Stairs;
+	if(s == "slab")
+		return RenderType::Slab;
+	if(s == "pane")
+		return RenderType::Pane;
+	if(s == "fence")
+		return RenderType::Fence;
+	if(s == "door")
+		return RenderType::Door;
 	return RenderType::Cube;
 }
 
@@ -68,6 +78,8 @@ void BlockDatabase::LoadFromFile(const std::string &jsonPath)
 			data.tint = parseTint(b.value("tint", "none"));
 			data.waving = b.value("waving", false);
 			data.light = static_cast<uint8_t>(std::clamp(b.value("light", 0), 0, 15));
+			data.facing = static_cast<uint8_t>(b.value("facing", 0) & 3);
+			data.doorTop = b.value("doorTop", false);
 
 			std::string texGeneral = b.value("texture", "");
 			data.texLayerTop = addTexture(b.value("textureTop", texGeneral));

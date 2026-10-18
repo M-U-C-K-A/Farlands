@@ -8,7 +8,7 @@
 
 <p align="center">
   <b>A Minecraft-style voxel engine written from scratch in C++20 and Vulkan, with a physically based HDR renderer.</b><br>
-  Sun & moon shadows · atmospheric sky · volumetric clouds & fog · reflective water · shader presets (Realistic, Golden Hour, Horror, Night) · villages, temples & other structures · amplified peaks · flying & building · lanterns and torches that light the world · far terrain up to 6 km · multithreaded infinite world
+  Sun & moon shadows · atmospheric sky · volumetric clouds & fog · reflective water · shader presets (Realistic, Golden Hour, Horror, Night) · large walled villages with churches, forges and harbors · temples & other structures · amplified peaks · flying & building · lanterns and torches that light the world · far terrain up to 6 km · multithreaded infinite world
 </p>
 
 <p align="center">
@@ -82,17 +82,42 @@
   </tr>
 </table>
 
-### Structures, amplified peaks and nights
+### Villages
+
+<p align="center">
+  <img src="docs/assets/screenshots/village.jpg" alt="A walled town on a lakeshore: dozens of half-timbered houses with red tile roofs, a church with a bell tower, crenellated ramparts with towers, a windmill and fields outside the walls, piers on the lake" width="100%">
+</p>
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/assets/screenshots/village.jpg" alt="A village in a mountain valley: plaster and timber houses, a well, dirt paths, lamp posts and a wheat field" width="100%"></td>
-    <td width="50%"><img src="docs/assets/screenshots/village-night.jpg" alt="The same village at night under the stars, its lanterns and lamp posts casting warm light on the paths" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/village-night.jpg" alt="The same walled town at night, lanterns glowing on the towers, along the streets and in the windows" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/village-church.jpg" alt="Inside the church: stone walls, pews made of stairs, a red carpet down the aisle, stained-glass windows, a rose window and a golden altar" width="100%"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Village</b> — houses facing the well, paths, lamp posts, fields (5 regional styles)</sub></td>
-    <td align="center"><sub><b>Night preset</b> — moonlight, stars, lanterns lighting the paths</sub></td>
+    <td align="center"><sub><b>At night</b> — towers, streets and windows lit by lanterns</sub></td>
+    <td align="center"><sub><b>Church</b> — stained glass, rose window, pews, altar</sub></td>
   </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/village-harbor.jpg" alt="A harbor below the town walls: a stone quay, plank piers on log posts with lanterns, and sailboats moored alongside" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/village-plaza.jpg" alt="The village square: patterned cobblestone paving, a covered well, lamp posts and market stalls, houses with stair-built roofs around" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Harbor</b> — quay, piers, moored boats when a street reaches the water</sub></td>
+    <td align="center"><sub><b>Square</b> — paving, well or fountain, market stalls, lamp posts</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/village-windmill.jpg" alt="A windmill with white canvas sails outside the town wall, next to the fields" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/village-taiga.jpg" alt="A snowy taiga town with spruce houses and slate roofs inside its ramparts, a frozen pond and forest around" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Outside the walls</b> — windmills, barns with pens, open fields along the roads</sub></td>
+    <td align="center"><sub><b>Taiga style</b> — spruce, slate roofs (plains, taiga, cherry, snowy, desert styles)</sub></td>
+  </tr>
+</table>
+
+### Structures, amplified peaks and nights
+
+<table>
   <tr>
     <td width="50%"><img src="docs/assets/screenshots/desert-temple.jpg" alt="A stepped sandstone pyramid with two obelisks at the edge of a desert dotted with cacti" width="100%"></td>
     <td width="50%"><img src="docs/assets/screenshots/shrine.jpg" alt="A cherry shrine at golden hour: pavilion with a tiered roof, vermilion torii gates and stone lanterns" width="100%"></td>
@@ -129,19 +154,19 @@
 
 <table>
   <tr>
+    <td width="50%"><img src="docs/assets/screenshots/block-shapes.jpg" alt="Block shapes: roof-tile stairs in four orientations and slabs, clear and stained-glass panes, an oak fence, a door in a plaster wall" width="100%"></td>
     <td width="50%"><img src="docs/assets/screenshots/sand-transition.jpg" alt="Grass fading into sand with an organic pixel-art edge instead of a hard block boundary" width="100%"></td>
-    <td width="50%"><img src="docs/assets/screenshots/step-blend.jpg" alt="One-block steps between grass and sand: the sides of the grass blocks fade down into the sand below" width="100%"></td>
   </tr>
   <tr>
+    <td align="center"><sub><b>Block shapes</b> — stairs, slabs, glass panes, stained glass, fences, doors</sub></td>
     <td align="center"><sub><b>Surface transitions</b> — grass, sand and snow blend with a pixel-art mask</sub></td>
-    <td align="center"><sub><b>Steps</b> — the sides of a one-block step fade into the surface below</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/assets/screenshots/menu.jpg" alt="Main menu drawn over the live world, slowly panning across the spawn vista" width="100%"></td>
+    <td width="50%"><img src="docs/assets/screenshots/step-blend.jpg" alt="One-block steps between grass and sand: the sides of the grass blocks fade down into the sand below" width="100%"></td>
     <td width="50%"><img src="docs/assets/screenshots/world-tab.jpg" alt="The World tab of the options: teleport buttons for every structure and biome, fly speed, and a new world form with a seed and an amplified option" width="100%"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Main menu</b> — drawn over the live world</sub></td>
+    <td align="center"><sub><b>Steps</b> — the sides of a one-block step fade into the surface below</sub></td>
     <td align="center"><sub><b>World tab</b> — teleport to the nearest structure or biome, new seed, amplified world</sub></td>
   </tr>
 </table>
@@ -181,9 +206,10 @@
 - Terrain from Perlin fBm: continents, lakes, **ridged multifractal mountains** with domain warping, snow line and rocky cliffs
 - **11 biomes**: Ocean, Beach, Plains, Forest, Desert, Mountains, Taiga, Snowy Taiga, Cherry Grove, Snowy Peaks and **Amplified Peaks** (towering spires with 3D-noise overhangs)
 - **Amplified world type**: the whole map amplified, with the usual climates in the valleys
-- **Structures**: villages (plains, taiga, cherry, snowy and desert styles: houses, well, paths, lamp posts, fields), desert temples, ruined towers, igloos, cherry shrines with torii gates, lighthouses
+- **Large villages** (radius 80–130 blocks, up to ~70 buildings) in 5 regional styles: winding streets and alleys around a paved square with a fountain or well and market stalls; houses of three sizes (one or two storeys, timber framing, stair-built roofs, glass windows, doors, furniture); a **church** with a bell tower, spire, stained glass and pews; a **forge**, a **tavern**, a **library**; **ramparts** with towers and gates for the bigger ones; **windmills**, barns with pens and open **fields** of wheat, carrots, potatoes and beetroots along the outer roads; a **harbor** with a quay, piers and sailboats when a street reaches the water
+- **Other structures**: desert temples, ruined towers, igloos, cherry shrines with torii gates, lighthouses
 - **Trees** (oak, birch, spruce, cherry), boulders, cacti, dead bushes, pumpkins, tall grass and flowers, ores — deterministic across chunk borders
-- **48 data-driven blocks** with biome tints and light levels; procedural pixel-art textures for the new ones
+- **112 data-driven blocks** with biome tints and light levels — including **stairs** (4 orientations), **slabs**, see-through **glass panes**, **stained glass**, **fences** and **doors**; procedural pixel-art textures for the new ones
 - **Smooth surface transitions** between grass, sand and snow — on top faces and down the sides of steps — and irregular beach edges
 - **Any seed**: generate a new world (normal or amplified) from the World tab
 - **Scenic spawn**: the game searches for a spot with a lake in front and peaks in view
@@ -197,8 +223,8 @@
 - First-person controller with frame-rate independent movement
 - Gravity, jumping, **swimming**, **sprinting**, terminal velocity with sub-stepping
 - **Creative flight** (double-tap Space or F) with smooth acceleration, adjustable speed
-- **Building**: break, place and pick blocks (DDA raycast, outline on the targeted block), 9-slot hotbar; edits are saved per world
-- **Per-axis AABB collisions** (0.6 × 1.8 hitbox), zoom (C)
+- **Building**: break, place and pick blocks (DDA raycast, outline on the targeted block), 9-slot hotbar; stairs face the way you look, doors are placed and broken in pairs; edits are saved per world
+- **Per-axis AABB collisions** against the real block shapes (slabs, stairs, 1.5-block fences, open doors), automatic step-up onto slabs and stairs, zoom (C)
 
 </td>
     <td valign="top">
@@ -253,6 +279,10 @@ cmake --build build -j
 ```
 
 The main menu is drawn over the live world while it streams in the background; click **Singleplayer** to play from the spawn vista, or **World...** to jump straight to a village, a temple or the Amplified Peaks.
+
+<p align="center">
+  <img src="docs/assets/screenshots/menu.jpg" alt="Main menu drawn over the live world, slowly panning across the spawn vista" width="80%">
+</p>
 
 ### Controls
 
@@ -362,7 +392,7 @@ A **preset** (`applyPreset()` in `render_settings.h`) only changes the mood — 
   </picture>
 </p>
 
-A vertex is **20 bytes**: the position inside the chunk, a packed word (texture layer, normal, AO, UV corner, block id, wave flag, surface blend) and an RGBA8 biome tint whose alpha byte carries the block light level.
+A vertex is **16 bytes**: the position inside the chunk in 16-bit fixed point (1/64 block) with texture coordinates in 1/16 block, a packed word (texture layer, normal, AO, block id, wave flag, surface blend) and an RGBA8 biome tint whose alpha byte carries the block light level.
 
 ### Surface transitions and falling leaves
 
@@ -372,7 +402,9 @@ Top faces of grass, sand and snow store, per vertex, the neighbouring surface ty
 
 ### Structures
 
-The world is cut into 192 × 192 regions; each region hashes the seed into at most one **site** — a jittered point whose biome picks the structure (village, desert temple, ruined tower, igloo, cherry shrine or lighthouse) after a few terrain checks (dry land, gentle slopes, sea nearby for a lighthouse). The site is cheap to evaluate, so trees and boulders can avoid it. Its **blueprint** — every block, with a mode: *set*, *fill* (foundations only replace air, water or plants), *clear* (interiors) or *soft clear* (plants above paths) — is computed once from the heightmap and cached; each chunk then stamps the part that falls inside it. Buildings are written in local coordinates with their door on −Z and rotated to face the village well; houses get stone foundations down to the slope, gable roofs, windows, a ceiling lantern and sometimes a chimney.
+Villages live on a 640 × 640 grid, the other structures on a 192 × 192 one; each region hashes the seed into at most one **site** — a jittered point whose biome picks the structure (village style, desert temple, ruined tower, igloo, cherry shrine or lighthouse) after a few terrain checks (dry land, gentle slopes, sea nearby for a lighthouse). Sites are cheap to evaluate. A site's **blueprint** — every block, with a mode: *set*, *fill* (foundations only replace air, water or plants), *clear* (interiors) or *soft clear* (plants above paths) — is computed once from the heightmap (the first thread builds it, the others wait for it), bucketed by chunk and cached; each chunk then stamps its own bucket. Buildings are written in local coordinates with their door on −Z and rotated to face their street; oriented blocks (stairs, doors) are rotated with them.
+
+A **village** is decided on an occupancy grid before any block is written: the square, then 3 to 5 main streets that meander out of it (a random walk that stops at water or steep slopes), alleys branching off them, and building slots on both sides of every street. Landmarks take the slots nearest the square (church, forge, tavern, library), then large and medium houses, then small ones fill the gaps — each building tries a few setbacks and sideways shifts until its footprint (plus a one-block gap) is free and flat enough for its foundations. Big villages get a ring of **ramparts** first: the town packs inside, towers stand every ~30 blocks, and gates open wherever a street crosses. Fields, windmills and barns go along the roads outside; a street that ends in the water becomes a **harbor**. The occupied cells, widened by three blocks, become a mask that keeps trees and boulders out of the streets and gardens.
 
 ### Amplified terrain
 
@@ -381,6 +413,10 @@ The world is cut into 192 × 192 regions; each region hashes the seed into at mo
 ### Block light and nights
 
 Blocks with a `light` level in `blocks.json` (lantern, jack-o'-lantern 15, torch 14) are listed per chunk. When a chunk is meshed, the light of every source within 15 blocks — in the chunk or its 8 neighbours — is flood-filled through non-opaque blocks, losing one level per block; each vertex averages the cells around its corner (smooth lighting) and stores the level in the alpha byte of its tint. The fragment shader turns it into warm light (`0.8^(15 − level)`) and adds an emissive term on the bright texels of the light blocks. The **Night** preset swaps the sun for the moon: same direction maths, same atmosphere LUT and shadow map, about 5 % of the intensity with a cool tint, plus stars and a moon disc in the sky pass.
+
+### Block shapes
+
+Stairs, slabs, panes, fences and doors are lists of axis-aligned boxes (`block_shape.h`) shared by the mesher and the collisions. The mesher emits each box face unless it lies on the block boundary against an opaque cube, skips the faces hidden inside a stair, and derives texture coordinates from the position inside the block, so a half face shows half a texture. Panes and fences connect to their neighbours (other panes or fences, glass, opaque cubes); stairs and doors carry their orientation in their block id (four consecutive ids per material).
 
 ### Building
 
@@ -412,10 +448,15 @@ Blocks are data-driven: `BlockDatabase` loads `assets/data/blocks.json` at start
 }
 ```
 
-`renderType` is `cube`, `cross` (plants) or `liquid`; `tint` is `none`, `grass` or `foliage`; an optional `light` (0–15) makes the block a light source. The textures of the newer blocks are generated by `scripts/gen_textures.py` and `scripts/gen_structure_textures.py`:
+`renderType` is `cube`, `cross` (plants), `liquid`, `stairs`, `slab`, `pane`, `fence` or `door`; `tint` is `none`, `grass` or `foliage`; an optional `light` (0–15) makes the block a light source, `facing` (0–3) orients stairs and doors and `doorTop` marks the upper half of a door. The textures of the newer blocks are generated by `scripts/gen_textures.py` and `scripts/gen_structure_textures.py`:
 
 <p align="center">
   <img src="docs/assets/structure-blocks.png" alt="The 21 structure blocks: stone bricks, mossy bricks and cobblestone, bricks, sandstone, chiseled sandstone, spruce, cherry and vermilion planks, white plaster, lantern, torch, jack-o'-lantern, pumpkin, hay bale, farmland, wheat, dirt path, cactus, dead bush and cobweb" width="80%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/village-blocks.png" alt="Village blocks: roof tiles, slate, see-through glass, red, blue and yellow stained glass, bookshelf, barrel, forge, crafting table, gold block, oak door, five wools and the carrot, potato, beetroot and wheat crops" width="80%"><br>
+  <sub>Village blocks — most also come as stairs, slabs, panes or fences.</sub>
 </p>
 
 ### Saving
@@ -456,7 +497,10 @@ Farlands/
 │   │   ├── lod_terrain.*       far terrain tiles (LOD)
 │   │   ├── leaf_particles.*    falling leaves and petals
 │   │   ├── terrain_generator.* relief, amplified overhangs, biomes, surface, trees, boulders, plants
-│   │   ├── structures.*        structure sites, blueprints (villages, temples, ruins, igloos, shrines, lighthouses)
+│   │   ├── structures.*        structure sites, blueprint cache (temples, ruins, igloos, shrines, lighthouses)
+│   │   ├── village.*           large villages: streets, houses, church, forge, tavern, ramparts, fields, harbor
+│   │   ├── structure_builder.h rotated local builder, oriented blocks, deterministic RNG
+│   │   ├── block_shape.h       boxes of stairs, slabs, panes, fences, doors (mesh + collisions)
 │   │   ├── chunk.*             16×256×16 block storage + biome tints
 │   │   ├── chunk_mesh.*        face culling, AO, block light, surface blends, plants, water
 │   │   ├── chunk_serializer.*  RLE chunk files
@@ -480,7 +524,8 @@ Farlands/
 | Graphics options | `RenderSettings` in `src/renderer/render_settings.h` (or the Options window) | render distance 20, far terrain 2048, shadows 4096², clouds 0.58 |
 | Shader presets | `applyPreset()` in `src/renderer/render_settings.h` | Realistic |
 | World seed / type | `FARLANDS_SEED`, `FARLANDS_AMPLIFIED=1`, or Options › World | 42, normal |
-| Structure density | `REGION` and `computeSite()` in `src/world/structures.cpp` | ≤ 1 per 192 × 192 region |
+| Structure density | `REGION`, `VILLAGE_REGION`, `computeSite()`, `computeVillageSite()` in `src/world/structures.cpp` | ≤ 1 per 192² / 640² region |
+| Village size and layout | `src/world/village.cpp` (`plan()`) | radius 80–130 |
 | Amplified regions | `amplifiedMask()` in `src/world/terrain_generator.cpp` | rare |
 | Block light | `light` in `blocks.json`, `BLOCK_LIGHT_INTENSITY` in `shaders/terrain_body.glsl` | 15 · 2.6 |
 | Flight | `FLY_SPEED`, `FLY_SPRINT_SCALE` in `src/player/player.h` (Options › World › Fly speed) | 14 · ×3 |
@@ -511,6 +556,8 @@ Farlands/
 - [x] Flying, sprinting, zoom; breaking and placing blocks with a hotbar, saved per world
 - [x] Block light (lanterns, torches), Night preset with moon, stars and moon shadows
 - [x] World tab: teleport to structures and biomes, new world from any seed
+- [x] Large villages: streets, three house sizes, church, forge, tavern, library, ramparts, windmills, fields, harbors
+- [x] Stairs, slabs, glass panes, stained glass, fences, doors (16-byte vertices with fractional UVs, shape collisions)
 
 **Next**
 
@@ -519,7 +566,7 @@ Farlands/
 - [ ] Caves
 - [ ] Animated day / night cycle
 - [ ] Villagers and animals
-- [ ] Stairs, slabs, doors; structures in the far terrain
+- [ ] Upside-down stairs, opening doors; structures in the far terrain
 
 ---
 

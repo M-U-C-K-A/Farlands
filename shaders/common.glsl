@@ -92,17 +92,21 @@ struct VertexData
     uint blendCount;  // part du type mélangé autour du coin, en quarts (0..4)
 };
 
+// Position locale au chunk et coordonnées de texture (attribut uvec4)
+vec3 vertexPosition(uvec4 p) { return vec3(p.xyz) / 64.0 - 1.0; }
+vec2 vertexUV(uvec4 p) { return vec2(float(p.w & 0xFFu), float(p.w >> 8)) / 16.0; }
+
 VertexData unpackVertex(uint d)
 {
     VertexData v;
     v.layer = d & 0x3FFu;
     v.normal = (d >> 10) & 7u;
     v.ao = (d >> 13) & 3u;
-    v.uv = vec2(float((d >> 15) & 1u), float((d >> 16) & 1u));
-    v.block = (d >> 17) & 0xFFu;
-    v.wave = (d >> 25) & 3u;
-    v.blendKind = (d >> 27) & 3u;
-    v.blendCount = (d >> 29) & 7u;
+    v.uv = vec2(0.0); // voir vertexUV()
+    v.block = (d >> 15) & 0xFFu;
+    v.wave = (d >> 23) & 3u;
+    v.blendKind = (d >> 25) & 3u;
+    v.blendCount = (d >> 27) & 7u;
     return v;
 }
 

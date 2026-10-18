@@ -7,6 +7,7 @@
 #include "chunk_mesh.h"
 
 #include "block.h"
+#include "block_shape.h"
 
 #include <algorithm>
 #include <deque>
@@ -196,6 +197,85 @@ namespace
 		};
 	}
 
+namespace
+	{
+		// Coordonnées de texture d'un point d'une face (même convention que
+		// FACE_U / FACE_V pour les faces entières)
+		glm::vec2 faceUV(int f, const glm::vec3 &p)
+		{
+			switch(f)
+				{
+				case 0: return {p.x, 1.0f - p.y};
+				case 1: return {1.0f - p.x, 1.0f - p.y};
+				case 2: return {p.x, p.z};
+				case 3: return {p.x, 1.0f - p.z};
+				case 4: return {1.0f - p.z, 1.0f - p.y};
+				default: return {p.z, 1.0f - p.y};
+				}
+		}
+
+		// Faces d'une boîte (coordonnées locales au bloc) ; une face posée sur
+		// le bord du bloc est cachée par un cube opaque voisin
+		void emitBox(MeshBuilder &target, const ChunkNeighborhood &n, const LightGrid &light, int x,
+					 int y, int z, const BlockData &bd, uint32_t typeId, uint32_t tint,
+					 const glm::vec3 &lo, const glm::vec3 &hi, uint32_t mask)
+		{
+			for(int f = 0; f < 6; ++f)
+				{
+					if(!(mask & (1u << f)))
+						continue;
+					const FaceDef &fd = FACES[f];
+					bool boundary = (f == 0 && hi.z >= 1.0f) || (f == 1 && lo.z <= 0.0f)
+									|| (f == 2 && hi.y >= 1.0f) || (f == 3 && lo.y <= 0.0f)
+									|| (f == 4 && hi.x >= 1.0f) || (f == 5 && lo.x <= 0.0f);
+					glm::ivec3 off = boundary ? fd.normal : glm::ivec3(0);
+					if(boundary && BlockDatabase::IsOpaqueCube(n.get(x + off.x, y + off.y, z + off.z)))
+						continue;
+					uint32_t level = std::max<uint32_t>(light.get(x + off.x, y + off.y, z + off.z), bd.light);
+					uint32_t data = Vertex::pack(static_cast<uint32_t>(faceLayer(bd, f)),
+												 static_cast<uint32_t>(f), 0, typeId, 0);
+					Vertex v[4];
+					for(int c = 0; c < 4; ++c)
+						{
+							glm::vec3 p = lo + (hi - lo) * glm::vec3(fd.corners[c]);
+							glm::vec2 uv = faceUV(f, p);
+							v[c] = Vertex::make(glm::vec3(x, y, z) + p, uv.x, uv.y, data, withLight(tint, level));
+						}
+					target.quad(v, false);
+				}
+		}
+
+		void emitShape(MeshBuilder &target, const ChunkNeighborhood &n, const LightGrid &light, int x,
+					   int y, int z, BlockType type, const BlockData &bd, uint32_t tint)
+		{
+			ShapeBox boxes[6];
+			int count = shape::boxes(
+			  type, [&](int dx, int dz) { return n.get(x + dx, y, z + dz); }, false, boxes);
+			uint32_t typeId = static_cast<uint32_t>(type);
+			bool stairs = bd.renderType == RenderType::Stairs;
+			for(int i = 0; i < count; ++i)
+				{
+					uint32_t mask = 0x3Fu;
+					if(stairs)
+						mask &= i == 0 ? ~(1u << 2) : ~(1u << 3); // faces internes de la marche
+					emitBox(target, n, light, x, y, z, bd, typeId, tint, boxes[i].lo, boxes[i].hi, mask);
+				}
+			if(stairs)
+				{
+					// Dessus de la marche basse, côté opposé à la partie haute
+					glm::vec3 lo(0, 0, 0), hi(1, 0.5f, 1);
+					switch(bd.facing)
+						{
+						case 0: lo.z = 0.5f; break;
+						case 1: hi.x = 0.5f; break;
+						case 2: hi.z = 0.5f; break;
+						default: lo.x = 0.5f; break;
+						}
+					emitBox(target, n, light, x, y, z, bd, typeId, tint, lo, hi, 1u << 2);
+				}
+		}
+	}
+
 ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 {
 	const Chunk &chunk = n.center();
@@ -255,14 +335,22 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 											glm::vec3 p1 = base + glm::vec3(diag[1].x, 0, diag[1].y);
 											glm::vec3 top(0, up, 0);
 											uint32_t topWave = bd.waving ? 2u : 0u;
-											v[0] = {p0, Vertex::pack(layer, 6, 0, 0, 1, typeId, 0), plantTint};
-											v[1] = {p1, Vertex::pack(layer, 6, 0, 1, 1, typeId, 0), plantTint};
-											v[2] = {p1 + top, Vertex::pack(layer, 6, 0, 1, 0, typeId, topWave), plantTint};
-											v[3] = {p0 + top, Vertex::pack(layer, 6, 0, 0, 0, typeId, topWave), plantTint};
+											v[0] = Vertex::make(p0, 0, 1, Vertex::pack(layer, 6, 0, typeId, 0), plantTint);
+											v[1] = Vertex::make(p1, 1, 1, Vertex::pack(layer, 6, 0, typeId, 0), plantTint);
+											v[2] = Vertex::make(p1 + top, 1, 0, Vertex::pack(layer, 6, 0, typeId, topWave), plantTint);
+											v[3] = Vertex::make(p0 + top, 0, 0, Vertex::pack(layer, 6, 0, typeId, topWave), plantTint);
 											cutout.quad(v, false);
 											Vertex r[4] = {v[1], v[0], v[3], v[2]};
 											cutout.quad(r, false);
 										}
+									continue;
+								}
+
+							// ── Formes : escaliers, dalles, vitres, barrières, portes ──
+							if(bd.renderType >= RenderType::Stairs)
+								{
+									emitShape(bd.isTransparent ? cutout : solid, n, light, x, y, z, type, bd,
+											  tint);
 									continue;
 								}
 
@@ -454,10 +542,10 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 													int cx = x + corner.x - px, cz = z + corner.z - pz;
 													blendCount = 4u - cornerCount(px, y - 1, pz, cx, cz, type);
 												}
-											v[c] = {p, Vertex::pack(layer, static_cast<uint32_t>(f), ao[c],
-																	FACE_U[c], FACE_V[c], typeId, wave,
-																	blendKind, blendCount),
-													withLight(faceTint, lightLevel)};
+											v[c] = Vertex::make(p, static_cast<float>(FACE_U[c]), static_cast<float>(FACE_V[c]),
+																Vertex::pack(layer, static_cast<uint32_t>(f), ao[c], typeId,
+																			 wave, blendKind, blendCount),
+																withLight(faceTint, lightLevel));
 										}
 
 									// Diagonale qui évite l'anisotropie de l'AO
@@ -487,11 +575,12 @@ ChunkMeshData buildChunkMesh(const ChunkNeighborhood &n)
 
 	if(!mesh.vertices.empty())
 		{
-			mesh.minY = mesh.maxY = mesh.vertices[0].pos.y;
+			mesh.minY = mesh.maxY = mesh.vertices[0].position().y;
 			for(const Vertex &v : mesh.vertices)
 				{
-					mesh.minY = std::min(mesh.minY, v.pos.y);
-					mesh.maxY = std::max(mesh.maxY, v.pos.y);
+					float py = v.position().y;
+					mesh.minY = std::min(mesh.minY, py);
+					mesh.maxY = std::max(mesh.maxY, py);
 				}
 		}
 	return mesh;

@@ -6,7 +6,13 @@
 // -----------------------------------------------------------------------------
 #include "structures.h"
 
+#include "structure_builder.h"
 #include "terrain_generator.h"
+#include "village.h"
+
+#include "core/logger.h"
+
+#include <chrono>
 
 #include <algorithm>
 #include <cmath>
@@ -14,107 +20,20 @@
 
 using Mode = StructureBlueprint::Mode;
 
+using Mode = StructureBlueprint::Mode;
+using namespace structgen;
+
 namespace
 	{
 		constexpr float PI = 3.14159265f;
-
-		// Générateur pseudo-aléatoire local (xorshift), déterministe par structure
-		struct Rng
-		{
-			uint32_t s;
-			explicit Rng(uint32_t seed) : s(seed ? seed : 0x9E3779B9u) {}
-			uint32_t next()
-			{
-				s ^= s << 13;
-				s ^= s >> 17;
-				s ^= s << 5;
-				return s;
-			}
-			float f() { return static_cast<float>(next() >> 8) / 16777216.0f; }
-			int range(int a, int b) { return a + static_cast<int>(next() % static_cast<uint32_t>(b - a + 1)); }
-		};
 
 		uint64_t regionKey(int rx, int rz)
 		{
 			return (static_cast<uint64_t>(static_cast<uint32_t>(rx)) << 32)
 				   | static_cast<uint32_t>(rz);
 		}
-
-		// Pose de blocs en coordonnées locales tournées (rot : 0..3, porte
-		// locale vers -Z ; 1 : +X, 2 : +Z, 3 : -X)
-		struct Builder
-		{
-			StructureBlueprint &bp;
-			glm::ivec3 origin{0};
-			int rot = 0;
-
-			glm::ivec3 w(int x, int y, int z) const
-			{
-				switch(rot & 3)
-					{
-					case 0: return origin + glm::ivec3(x, y, z);
-					case 1: return origin + glm::ivec3(-z, y, x);
-					case 2: return origin + glm::ivec3(-x, y, -z);
-					default: return origin + glm::ivec3(z, y, -x);
-					}
-			}
-			void set(int x, int y, int z, BlockType t, Mode m = Mode::Set)
-			{
-				bp.add(w(x, y, z), t, m);
-			}
-			void clear(int x, int y, int z) { bp.add(w(x, y, z), BlockType::Air, Mode::Clear); }
-		};
-
-		// Décalage tourné (sans origine)
-		glm::ivec2 rotate2(int x, int z, int rot)
-		{
-			switch(rot & 3)
-				{
-				case 0: return {x, z};
-				case 1: return {-z, x};
-				case 2: return {-x, -z};
-				default: return {z, -x};
-				}
-		}
-
-		struct Rect
-		{
-			int x0, z0, x1, z1;
-			bool overlaps(const Rect &o, int pad) const
-			{
-				return x0 - pad <= o.x1 && x1 + pad >= o.x0 && z0 - pad <= o.z1 && z1 + pad >= o.z0;
-			}
-			bool contains(int x, int z) const { return x >= x0 && x <= x1 && z >= z0 && z <= z1; }
-		};
-
-		// Matériaux d'un style de village
-		struct Style
-		{
-			BlockType wall, frame, floor, roof, foundation;
-			bool flatRoof = false;
-		};
-
-		Style villageStyle(int style)
-		{
-			switch(style)
-				{
-				case 1: // taïga
-					return {BlockType::Spruce_Planks, BlockType::Spruce_Log, BlockType::Spruce_Planks,
-							BlockType::Mossy_Cobblestone, BlockType::Cobblestone};
-				case 2: // cerisiers
-					return {BlockType::White_Plaster, BlockType::Vermilion_Planks, BlockType::Cherry_Planks,
-							BlockType::Spruce_Planks, BlockType::Stone_Bricks};
-				case 3: // neige
-					return {BlockType::Spruce_Planks, BlockType::Spruce_Log, BlockType::Plank,
-							BlockType::Snow, BlockType::Cobblestone};
-				case 4: // désert
-					return {BlockType::Sandstone, BlockType::Chiseled_Sandstone, BlockType::Sandstone,
-							BlockType::Sandstone, BlockType::Sandstone, true};
-				default: // plaines : colombages
-					return {BlockType::White_Plaster, BlockType::Log, BlockType::Plank,
-							BlockType::Spruce_Planks, BlockType::Cobblestone};
-				}
-		}
+		// Clés des plans : petites structures et villages séparés
+		uint64_t villageKey(int vx, int vz) { return regionKey(vx, vz) ^ 0x8000000080000000ull; }
 	}
 
 const char *structureName(StructureType type)
@@ -169,6 +88,9 @@ StructureSite StructureGenerator::computeSite(int rx, int rz) const
 	ColumnInfo col = m_gen.getColumn(cx, cz);
 	if(col.height <= SEA_LEVEL + 1)
 		return none;
+	StructureSite village;
+	if(villageNear(cx, cz, 40, village))
+		return none; // pas de ruine ni de temple dans un village
 	auto H = [&](int x, int z) { return m_gen.getHeightAt(x, z); };
 	int roll = static_cast<int>(m_gen.hash(rx, rz, 0x0B1Eu) % 100u);
 
@@ -178,26 +100,25 @@ StructureSite StructureGenerator::computeSite(int rx, int rz) const
 	switch(col.biome)
 		{
 		case BiomeType::Plains:
-			s.type = roll < 82 ? StructureType::Village : StructureType::Ruins;
+			if(roll < 35)
+				s.type = StructureType::Ruins;
 			break;
 		case BiomeType::Forest:
-			s.type = roll < 55 ? StructureType::Village : StructureType::Ruins;
-			break;
 		case BiomeType::Taiga:
-			s.type = roll < 70 ? StructureType::Village : StructureType::Ruins;
-			s.style = 1;
+			if(roll < 55)
+				s.type = StructureType::Ruins;
 			break;
 		case BiomeType::SnowyTaiga:
-			s.type = roll < 50 ? StructureType::Village : StructureType::Igloo;
-			s.style = 3;
+			if(roll < 70)
+				s.type = StructureType::Igloo;
 			break;
 		case BiomeType::CherryGrove:
-			s.type = roll < 60 ? StructureType::Shrine : StructureType::Village;
-			s.style = 2;
+			if(roll < 75)
+				s.type = StructureType::Shrine;
 			break;
 		case BiomeType::Desert:
-			s.type = roll < 55 ? StructureType::DesertTemple : StructureType::Village;
-			s.style = 4;
+			if(roll < 75)
+				s.type = StructureType::DesertTemple;
 			break;
 		case BiomeType::Beach: s.type = StructureType::Lighthouse; break;
 		case BiomeType::Mountains:
@@ -226,12 +147,6 @@ StructureSite StructureGenerator::computeSite(int rx, int rz) const
 	int dry, mn, mx;
 	switch(s.type)
 		{
-		case StructureType::Village:
-			ringStats(20, 12, dry, mn, mx);
-			if(dry < 10 || mx - mn > 16)
-				return none;
-			s.radius = 46;
-			break;
 		case StructureType::DesertTemple:
 			ringStats(11, 8, dry, mn, mx);
 			if(dry < 8 || mx - mn > 9)
@@ -274,8 +189,115 @@ StructureSite StructureGenerator::computeSite(int rx, int rz) const
 	return s;
 }
 
+// ── Villages (grande grille) ────────────────────────────────────
+bool StructureGenerator::villageInRegion(int vx, int vz, StructureSite &out) const
+{
+	uint64_t key = regionKey(vx, vz);
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		auto it = m_villageSites.find(key);
+		if(it != m_villageSites.end())
+			{
+				out = it->second;
+				return out.type != StructureType::None;
+			}
+	}
+	StructureSite site = computeVillageSite(vx, vz);
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_villageSites.emplace(key, site);
+	}
+	out = site;
+	return site.type != StructureType::None;
+}
+
+StructureSite StructureGenerator::computeVillageSite(int vx, int vz) const
+{
+	StructureSite none;
+	uint32_t h = m_gen.hash(vx, vz, 0x71A6Eu);
+	if(h % 100u >= 80u)
+		return none;
+	const int margin = VILLAGE_REACH;
+	auto H = [&](int x, int z) { return m_gen.getHeightAt(x, z); };
+	// Quelques essais dans la région : le premier emplacement assez plat
+	for(int attempt = 0; attempt < 6; ++attempt)
+		{
+			uint32_t r = m_gen.hash(vx * 7 + attempt, vz, 0x5EEDu);
+			int cx = vx * VILLAGE_REGION + margin + static_cast<int>(r % (VILLAGE_REGION - 2 * margin));
+			int cz = vz * VILLAGE_REGION + margin + static_cast<int>((r >> 12) % (VILLAGE_REGION - 2 * margin));
+			if(!m_gen.isAmplifiedWorld() && m_gen.amplifiedMask(cx, cz) > 0.02f)
+				continue;
+			ColumnInfo col = m_gen.getColumn(cx, cz);
+			if(col.height <= SEA_LEVEL + 1)
+				continue;
+			int style = -1;
+			switch(col.biome)
+				{
+				case BiomeType::Plains:
+				case BiomeType::Forest: style = 0; break;
+				case BiomeType::Taiga: style = 1; break;
+				case BiomeType::CherryGrove: style = 2; break;
+				case BiomeType::SnowyTaiga: style = 3; break;
+				case BiomeType::Desert: style = 4; break;
+				default: break;
+				}
+			if(style < 0)
+				continue;
+			// Terrain : sec et assez régulier autour du centre
+			int dry = 0, total = 0, mn = 1 << 20, mx = -(1 << 20);
+			for(int ring : {14, 30})
+				for(int i = 0; i < 12; ++i)
+					{
+						float a = i * 2.0f * PI / 12.0f;
+						int hh = H(cx + static_cast<int>(std::cos(a) * ring), cz + static_cast<int>(std::sin(a) * ring));
+						dry += hh > SEA_LEVEL + 1;
+						total++;
+						mn = std::min(mn, hh);
+						mx = std::max(mx, hh);
+					}
+			if(dry < total - 4 || mx - mn > 18)
+				continue;
+			StructureSite s;
+			s.type = StructureType::Village;
+			s.center = glm::ivec3(cx, col.height, cz);
+			s.style = style;
+			s.seed = m_gen.hash(vx, vz, 0xBEEFu + attempt);
+			s.radius = 80 + static_cast<int>(s.seed % 51u); // 80..130
+			return s;
+		}
+	return none;
+}
+
+bool StructureGenerator::villageNear(int wx, int wz, int margin, StructureSite &out) const
+{
+	int reach = VILLAGE_REACH + margin;
+	for(int vx = floorDiv(wx - reach, VILLAGE_REGION); vx <= floorDiv(wx + reach, VILLAGE_REGION); ++vx)
+		for(int vz = floorDiv(wz - reach, VILLAGE_REGION); vz <= floorDiv(wz + reach, VILLAGE_REGION); ++vz)
+			{
+				StructureSite s;
+				if(!villageInRegion(vx, vz, s))
+					continue;
+				int dx = wx - s.center.x, dz = wz - s.center.z, r = s.radius + margin;
+				if(dx * dx + dz * dz <= r * r)
+					{
+						out = s;
+						return true;
+					}
+			}
+	return false;
+}
+
 bool StructureGenerator::occupied(int wx, int wz) const
 {
+	// Village : masque précis (routes, bâtiments, champs, remparts)
+	StructureSite v;
+	if(villageNear(wx, wz, 0, v))
+		{
+			auto bp = blueprint(villageKey(floorDiv(v.center.x, VILLAGE_REGION),
+										   floorDiv(v.center.z, VILLAGE_REGION)), v);
+			if(bp->blocksTree(wx, wz))
+				return true;
+		}
 	for(int rx = floorDiv(wx - MAX_REACH, REGION); rx <= floorDiv(wx + MAX_REACH, REGION); ++rx)
 		for(int rz = floorDiv(wz - MAX_REACH, REGION); rz <= floorDiv(wz + MAX_REACH, REGION); ++rz)
 			{
@@ -292,6 +314,34 @@ bool StructureGenerator::occupied(int wx, int wz) const
 bool StructureGenerator::findNearest(StructureType type, const glm::ivec2 &from, int maxDist,
 									 StructureSite &out) const
 {
+	if(type == StructureType::Village)
+		{
+			int fvx = floorDiv(from.x, VILLAGE_REGION), fvz = floorDiv(from.y, VILLAGE_REGION);
+			float best = 1e30f;
+			int rings = maxDist / VILLAGE_REGION + 1;
+			for(int r = 0; r <= rings; ++r)
+				{
+					if(best < 1e29f && (r - 1) * VILLAGE_REGION > std::sqrt(best))
+						break;
+					for(int vx = fvx - r; vx <= fvx + r; ++vx)
+						for(int vz = fvz - r; vz <= fvz + r; ++vz)
+							{
+								if(std::max(std::abs(vx - fvx), std::abs(vz - fvz)) != r)
+									continue;
+								StructureSite s;
+								if(!villageInRegion(vx, vz, s))
+									continue;
+								float dx = static_cast<float>(s.center.x - from.x);
+								float dz = static_cast<float>(s.center.z - from.y);
+								if(dx * dx + dz * dz < best)
+									{
+										best = dx * dx + dz * dz;
+										out = s;
+									}
+							}
+				}
+			return best < 1e29f;
+		}
 	int frx = floorDiv(from.x, REGION), frz = floorDiv(from.y, REGION);
 	int maxRing = maxDist / REGION + 1;
 	float best = 1e30f;
@@ -323,21 +373,40 @@ bool StructureGenerator::findNearest(StructureType type, const glm::ivec2 &from,
 }
 
 // ── Plans (cache) et pose dans les chunks ───────────────────────
-std::shared_ptr<const StructureBlueprint>
-StructureGenerator::blueprint(int rx, int rz, const StructureSite &site) const
+StructureGenerator::BlueprintPtr StructureGenerator::blueprint(uint64_t key,
+															   const StructureSite &site) const
 {
-	uint64_t key = regionKey(rx, rz);
+	std::promise<BlueprintPtr> promise;
 	{
-		std::lock_guard<std::mutex> lock(m_mutex);
+		std::unique_lock<std::mutex> lock(m_mutex);
 		auto it = m_blueprints.find(key);
 		if(it != m_blueprints.end())
 			{
 				it->second.lastUse = ++m_useCounter;
 				return it->second.bp;
 			}
+		auto pending = m_building.find(key);
+		if(pending != m_building.end())
+			{
+				// Un autre thread le construit : on attend son résultat
+				auto future = pending->second;
+				lock.unlock();
+				return future.get();
+			}
+		m_building.emplace(key, promise.get_future().share());
 	}
+
 	auto bp = std::make_shared<StructureBlueprint>();
+	auto t0 = std::chrono::steady_clock::now();
 	build(site, *bp);
+	size_t blocks = bp->blocks.size();
+	bp->finalize();
+	if(site.type == StructureType::Village)
+		{
+			double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+			LOG_INFO("Village at (" << site.center.x << ", " << site.center.z << "), radius " << site.radius
+									<< ": " << blocks << " blocks planned in " << ms << " ms");
+		}
 
 	std::lock_guard<std::mutex> lock(m_mutex);
 	// Cache borné : on oublie les plans les moins récemment utilisés
@@ -349,16 +418,61 @@ StructureGenerator::blueprint(int rx, int rz, const StructureSite &site) const
 					oldest = it;
 			m_blueprints.erase(oldest);
 		}
-	auto &slot = m_blueprints[key];
-	if(!slot.bp)
-		slot.bp = std::move(bp);
-	slot.lastUse = ++m_useCounter;
-	return slot.bp;
+	m_blueprints[key] = {bp, ++m_useCounter};
+	m_building.erase(key);
+	promise.set_value(bp);
+	return bp;
+}
+
+void StructureGenerator::stamp(Chunk &chunk, const StructureBlueprint &bp) const
+{
+	glm::ivec2 cp = chunk.getChunkPos();
+	auto it = bp.byChunk.find(StructureBlueprint::chunkKey(cp.x, cp.y));
+	if(it == bp.byChunk.end())
+		return;
+	glm::ivec3 o = chunk.toWorldPos(0, 0, 0);
+	for(const auto &b : it->second)
+		{
+			int lx = b.pos.x - o.x, lz = b.pos.z - o.z;
+			BlockType cur = chunk.getBlockUnchecked(lx, b.pos.y, lz);
+			const BlockData &cd = BlockDatabase::Get(cur);
+			bool soft = cur == BlockType::Air || cd.renderType == RenderType::Cross
+						|| (cd.isTransparent && cd.renderType == RenderType::Cube && cur != BlockType::Glass);
+			switch(b.mode)
+				{
+				case Mode::Set: chunk.setBlock(lx, b.pos.y, lz, b.type); break;
+				case Mode::Fill:
+					if(soft || cur == BlockType::Water)
+						chunk.setBlock(lx, b.pos.y, lz, b.type);
+					break;
+				case Mode::Clear: chunk.setBlock(lx, b.pos.y, lz, BlockType::Air); break;
+				case Mode::ClearSoft:
+					if(soft && cur != BlockType::Water)
+						chunk.setBlock(lx, b.pos.y, lz, BlockType::Air);
+					break;
+				}
+		}
 }
 
 void StructureGenerator::place(Chunk &chunk) const
 {
 	glm::ivec3 o = chunk.toWorldPos(0, 0, 0);
+	// Villages (grande grille)
+	for(int vx = floorDiv(o.x - VILLAGE_REACH, VILLAGE_REGION);
+		vx <= floorDiv(o.x + CHUNK_SIZE_X + VILLAGE_REACH, VILLAGE_REGION); ++vx)
+		for(int vz = floorDiv(o.z - VILLAGE_REACH, VILLAGE_REGION);
+			vz <= floorDiv(o.z + CHUNK_SIZE_Z + VILLAGE_REACH, VILLAGE_REGION); ++vz)
+			{
+				StructureSite s;
+				if(!villageInRegion(vx, vz, s))
+					continue;
+				int reach = s.radius + 24;
+				if(s.center.x + reach < o.x || s.center.x - reach >= o.x + CHUNK_SIZE_X
+				   || s.center.z + reach < o.z || s.center.z - reach >= o.z + CHUNK_SIZE_Z)
+					continue;
+				stamp(chunk, *blueprint(villageKey(vx, vz), s));
+			}
+	// Petites structures
 	for(int rx = floorDiv(o.x - MAX_REACH, REGION); rx <= floorDiv(o.x + CHUNK_SIZE_X + MAX_REACH, REGION); ++rx)
 		for(int rz = floorDiv(o.z - MAX_REACH, REGION); rz <= floorDiv(o.z + CHUNK_SIZE_Z + MAX_REACH, REGION); ++rz)
 			{
@@ -368,33 +482,7 @@ void StructureGenerator::place(Chunk &chunk) const
 				if(s.center.x + MAX_REACH < o.x || s.center.x - MAX_REACH >= o.x + CHUNK_SIZE_X
 				   || s.center.z + MAX_REACH < o.z || s.center.z - MAX_REACH >= o.z + CHUNK_SIZE_Z)
 					continue;
-				auto bp = blueprint(rx, rz, s);
-				if(bp->max.x < o.x || bp->min.x >= o.x + CHUNK_SIZE_X || bp->max.z < o.z
-				   || bp->min.z >= o.z + CHUNK_SIZE_Z)
-					continue;
-				for(const auto &b : bp->blocks)
-					{
-						int lx = b.pos.x - o.x, lz = b.pos.z - o.z;
-						if(lx < 0 || lx >= CHUNK_SIZE_X || lz < 0 || lz >= CHUNK_SIZE_Z)
-							continue;
-						BlockType cur = chunk.getBlockUnchecked(lx, b.pos.y, lz);
-						const BlockData &cd = BlockDatabase::Get(cur);
-						bool soft = cur == BlockType::Air || cd.renderType == RenderType::Cross
-									|| (cd.isTransparent && cur != BlockType::Glass);
-						switch(b.mode)
-							{
-							case Mode::Set: chunk.setBlock(lx, b.pos.y, lz, b.type); break;
-							case Mode::Fill:
-								if(soft || cur == BlockType::Water)
-									chunk.setBlock(lx, b.pos.y, lz, b.type);
-								break;
-							case Mode::Clear: chunk.setBlock(lx, b.pos.y, lz, BlockType::Air); break;
-							case Mode::ClearSoft:
-								if(soft && cur != BlockType::Water)
-									chunk.setBlock(lx, b.pos.y, lz, BlockType::Air);
-								break;
-							}
-					}
+				stamp(chunk, *blueprint(regionKey(rx, rz), s));
 			}
 }
 
@@ -402,7 +490,7 @@ void StructureGenerator::build(const StructureSite &site, StructureBlueprint &bp
 {
 	switch(site.type)
 		{
-		case StructureType::Village: buildVillage(site, bp); break;
+		case StructureType::Village: village::build(m_gen, site, bp); break;
 		case StructureType::DesertTemple: buildDesertTemple(site, bp); break;
 		case StructureType::Ruins: buildRuins(site, bp); break;
 		case StructureType::Igloo: buildIgloo(site, bp); break;
@@ -410,318 +498,6 @@ void StructureGenerator::build(const StructureSite &site, StructureBlueprint &bp
 		case StructureType::Lighthouse: buildLighthouse(site, bp); break;
 		default: break;
 		}
-}
-
-// ── Village ─────────────────────────────────────────────────────
-void StructureGenerator::buildVillage(const StructureSite &s, StructureBlueprint &bp) const
-{
-	Rng r(s.seed);
-	const Style st = villageStyle(s.style);
-	const int cx = s.center.x, cz = s.center.z;
-	auto H = [&](int x, int z) { return m_gen.getHeightAt(x, z); };
-
-	struct Plan
-	{
-		glm::ivec3 origin;
-		int rot, w, d;
-		bool farm;
-		bool chimney;
-	};
-	std::vector<Plan> plans;
-	std::vector<Rect> used = {{cx - 4, cz - 4, cx + 5, cz + 5}}; // puits
-	std::vector<glm::ivec2> doors;
-
-	// ── Parcelles : maisons puis champs, porte tournée vers le puits ──
-	int houses = r.range(5, 8), farms = r.range(1, 2);
-	for(int attempt = 0; attempt < 90 && (houses > 0 || farms > 0); ++attempt)
-		{
-			bool farm = houses == 0 || (farms > 0 && attempt % 4 == 3);
-			int w = farm ? 7 : 5 + 2 * r.range(0, 1);
-			int d = farm ? 9 : 5 + 2 * r.range(0, 2);
-			float ang = r.f() * 2.0f * PI;
-			float dist = (farm ? 22.0f : 11.0f) + r.f() * (farm ? 16.0f : 24.0f);
-			int px = cx + static_cast<int>(std::cos(ang) * dist);
-			int pz = cz + static_cast<int>(std::sin(ang) * dist);
-			int ddx = cx - px, ddz = cz - pz;
-			int rot = std::abs(ddx) > std::abs(ddz) ? (ddx > 0 ? 1 : 3) : (ddz > 0 ? 2 : 0);
-
-			glm::ivec2 off = rotate2(w / 2, d / 2, rot);
-			glm::ivec3 origin(px - off.x, 0, pz - off.y);
-			Builder b{bp, origin, rot};
-			glm::ivec3 c0 = b.w(-1, 0, -1), c1 = b.w(w, 0, d);
-			Rect rect{std::min(c0.x, c1.x), std::min(c0.z, c1.z), std::max(c0.x, c1.x),
-					  std::max(c0.z, c1.z)};
-			bool clash = false;
-			for(const Rect &u : used)
-				clash |= rect.overlaps(u, 2);
-			if(clash)
-				continue;
-
-			int mn = 1 << 20, mx = -(1 << 20), sum = 0, n = 0;
-			for(int x = 0; x < w; ++x)
-				for(int z = 0; z < d; ++z)
-					{
-						glm::ivec3 p = b.w(x, 0, z);
-						int hh = H(p.x, p.z);
-						mn = std::min(mn, hh);
-						mx = std::max(mx, hh);
-						sum += hh;
-						n++;
-					}
-			if(mn <= SEA_LEVEL + 1 || mx - mn > (farm ? 2 : 5))
-				continue;
-
-			origin.y = farm ? static_cast<int>(std::lround(static_cast<float>(sum) / n)) - 1 : mx - 1;
-			plans.push_back({origin, rot, w, d, farm, !farm && r.f() < 0.4f && !st.flatRoof});
-			used.push_back(rect);
-			if(!farm)
-				{
-					glm::ivec3 door = Builder{bp, origin, rot}.w(w / 2, 0, -2);
-					doors.push_back({door.x, door.z});
-					houses--;
-				}
-			else
-				farms--;
-		}
-
-	// ── Chemins (posés en premier : les bâtiments ont priorité) ──
-	std::set<std::pair<int, int>> path;
-	auto addPath = [&](int x, int z) { path.insert({x, z}); };
-	for(int dx = -4; dx <= 5; ++dx)
-		for(int dz = -4; dz <= 5; ++dz)
-			if(dx <= -3 || dx >= 4 || dz <= -3 || dz >= 4)
-				addPath(cx + dx, cz + dz); // place autour du puits
-	std::vector<std::vector<glm::ivec2>> routes;
-	for(const glm::ivec2 &door : doors)
-		{
-			std::vector<glm::ivec2> route;
-			int tx = std::clamp(door.x, cx - 4, cx + 5), tz = std::clamp(door.y, cz - 4, cz + 5);
-			int x = door.x, z = door.y;
-			bool xFirst = std::abs(door.x - tx) > std::abs(door.y - tz);
-			auto walk = [&](int &v, int target, bool alongX) {
-				while(v != target)
-					{
-						v += v < target ? 1 : -1;
-						route.push_back({x, z});
-						addPath(x, z);
-						addPath(alongX ? x : x + 1, alongX ? z + 1 : z);
-					}
-			};
-			addPath(x, z);
-			if(xFirst)
-				{
-					walk(x, tx, true);
-					walk(z, tz, false);
-				}
-			else
-				{
-					walk(z, tz, false);
-					walk(x, tx, true);
-				}
-			routes.push_back(std::move(route));
-		}
-	for(auto [x, z] : path)
-		{
-			int hh = H(x, z);
-			if(hh <= SEA_LEVEL)
-				continue;
-			bp.add({x, hh - 1, z}, BlockType::Dirt_Path, Mode::Set);
-			bp.add({x, hh, z}, BlockType::Air, Mode::ClearSoft);
-		}
-
-	// ── Bâtiments ───────────────────────────────────────────────
-	for(const Plan &p : plans)
-		{
-			Builder b{bp, p.origin, p.rot};
-			const int w = p.w, d = p.d;
-			if(p.farm)
-				{
-					bool pumpkins = r.f() < 0.3f;
-					for(int x = 0; x < w; ++x)
-						for(int z = 0; z < d; ++z)
-							{
-								glm::ivec3 wp = b.w(x, 0, z);
-								int top = H(wp.x, wp.z) - 1 - p.origin.y; // sol local
-								for(int y = 1; y <= std::max(top, 0) + 3; ++y)
-									b.clear(x, y, z);
-								for(int y = top; y < 0; ++y)
-									b.set(x, y, z, BlockType::Dirt);
-								bool border = x == 0 || x == w - 1 || z == 0 || z == d - 1;
-								if(border)
-									b.set(x, 0, z, st.frame);
-								else if(x == w / 2)
-									b.set(x, 0, z, BlockType::Water);
-								else
-									{
-										b.set(x, 0, z, BlockType::Farmland);
-										bool pumpkin = pumpkins && (x + z) % 3 == 0;
-										b.set(x, 1, z, pumpkin ? BlockType::Pumpkin : BlockType::Wheat);
-									}
-							}
-					// Bottes de foin au bord du champ
-					for(int k = 0; k < 3; ++k)
-						{
-							glm::ivec3 wp = b.w(w + 1, 0, 1 + k);
-							int y = H(wp.x, wp.z) - p.origin.y;
-							b.set(w + 1, y, 1 + k, BlockType::Hay_Bale, Mode::Fill);
-							if(k == 1)
-								b.set(w + 1, y + 1, 1 + k, BlockType::Hay_Bale, Mode::Fill);
-						}
-					continue;
-				}
-
-			const int wallH = 3;
-			// Fondations, sol, intérieur
-			for(int x = -1; x <= w; ++x)
-				for(int z = -1; z <= d; ++z)
-					{
-						bool inside = x >= 0 && x < w && z >= 0 && z < d;
-						glm::ivec3 wp = b.w(x, 0, z);
-						int top = H(wp.x, wp.z) - 1 - p.origin.y;
-						if(!inside)
-							{
-								// Pourtour : on dégage la végétation et les reliefs gênants
-								for(int y = 1; y <= wallH; ++y)
-									b.set(x, y, z, BlockType::Air, y <= top ? Mode::Clear : Mode::ClearSoft);
-								continue;
-							}
-						for(int y = std::min(top, -1); y < 0; ++y)
-							b.set(x, y, z, st.foundation);
-						bool edge = x == 0 || x == w - 1 || z == 0 || z == d - 1;
-						b.set(x, 0, z, edge ? st.foundation : st.floor);
-						for(int y = 1; y <= wallH + (w + 1) / 2 + 1; ++y)
-							b.clear(x, y, z);
-					}
-			// Murs et poteaux d'angle
-			for(int y = 1; y <= wallH; ++y)
-				for(int x = 0; x < w; ++x)
-					for(int z = 0; z < d; ++z)
-						{
-							bool ex = x == 0 || x == w - 1, ez = z == 0 || z == d - 1;
-							if(!ex && !ez)
-								continue;
-							b.set(x, y, z, (ex && ez) ? st.frame : st.wall);
-						}
-			// Fenêtres
-			for(int z = 1; z < d - 1; ++z)
-				if(z == d / 2 || (d >= 9 && std::abs(z - d / 2) == 2))
-					{
-						b.set(0, 2, z, BlockType::Glass);
-						b.set(w - 1, 2, z, BlockType::Glass);
-					}
-			b.set(w / 2, 2, d - 1, BlockType::Glass);
-			// Porte (ouverture) et marche
-			b.clear(w / 2, 1, 0);
-			b.clear(w / 2, 2, 0);
-			{
-				glm::ivec3 wp = b.w(w / 2, 0, -1);
-				int top = H(wp.x, wp.z) - 1 - p.origin.y;
-				for(int y = std::min(top, -1); y < 0; ++y)
-					b.set(w / 2, y, -1, st.foundation);
-				b.set(w / 2, 0, -1, BlockType::Dirt_Path);
-			}
-
-			// Toit
-			if(st.flatRoof)
-				{
-					for(int x = -1; x <= w; ++x)
-						for(int z = -1; z <= d; ++z)
-							b.set(x, wallH + 1, z, st.roof);
-					for(int x = 0; x < w; ++x)
-						for(int z = 0; z < d; ++z)
-							if(x == 0 || x == w - 1 || z == 0 || z == d - 1)
-								b.set(x, wallH + 2, z, (x + z) % 2 ? st.frame : st.roof);
-				}
-			else
-				{
-					// Toit à deux pans, faîtage dans l'axe de la profondeur
-					for(int k = 0;; ++k)
-						{
-							int left = -1 + k, right = w - k;
-							if(left > right)
-								break;
-							int y = wallH + 1 + k;
-							for(int z = -1; z <= d; ++z)
-								{
-									b.set(left, y, z, st.roof);
-									b.set(right, y, z, st.roof);
-								}
-							// Pignons
-							for(int x = left + 1; x < right; ++x)
-								{
-									b.set(x, y, 0, st.wall);
-									b.set(x, y, d - 1, st.wall);
-								}
-						}
-				}
-			// Lanterne au plafond, cheminée
-			b.set(w / 2, wallH, d / 2, BlockType::Lantern);
-			if(p.chimney)
-				for(int y = 1; y <= wallH + (w + 1) / 2 + 2; ++y)
-					b.set(w - 2, y, d - 2, BlockType::Bricks);
-		}
-
-	// ── Puits au centre ─────────────────────────────────────────
-	{
-		int y0 = H(cx, cz) - 1;
-		Builder b{bp, {cx, y0, cz}, 0};
-		for(int x = -2; x <= 3; ++x)
-			for(int z = -2; z <= 3; ++z)
-				{
-					int top = H(cx + x, cz + z) - 1 - y0;
-					for(int y = 1; y <= std::max(top, 0) + 5; ++y)
-						b.clear(x, y, z);
-					for(int y = std::min(top, -1); y < 0; ++y)
-						b.set(x, y, z, BlockType::Cobblestone);
-					b.set(x, 0, z, BlockType::Cobblestone);
-				}
-		for(int x = -1; x <= 2; ++x)
-			for(int z = -1; z <= 2; ++z)
-				{
-					bool inner = x >= 0 && x <= 1 && z >= 0 && z <= 1;
-					b.set(x, -3, z, BlockType::Cobblestone);
-					for(int y = -2; y <= 1; ++y)
-						b.set(x, y, z, inner ? BlockType::Water : BlockType::Cobblestone);
-				}
-		for(int x : {-1, 2})
-			for(int z : {-1, 2})
-				for(int y = 2; y <= 3; ++y)
-					b.set(x, y, z, st.frame);
-		for(int x = -1; x <= 2; ++x)
-			for(int z = -1; z <= 2; ++z)
-				b.set(x, 4, z, st.flatRoof ? st.roof : BlockType::Spruce_Planks);
-		for(int x = 0; x <= 1; ++x)
-			for(int z = 0; z <= 1; ++z)
-				b.set(x, 5, z, st.flatRoof ? st.roof : BlockType::Spruce_Planks);
-		b.set(0, 6, 0, BlockType::Lantern);
-	}
-
-	// ── Lampadaires le long des chemins ─────────────────────────
-	std::set<std::pair<int, int>> lamps;
-	for(const auto &route : routes)
-		for(size_t i = 3; i < route.size(); i += 7)
-			{
-				glm::ivec2 p = route[i];
-				glm::ivec2 dir = i + 1 < route.size() ? route[i + 1] - route[i] : route[i] - route[i - 1];
-				glm::ivec2 side(dir.y, -dir.x);
-				if(side.x + side.y > 0) // côté opposé à la seconde voie du chemin
-					side = -side;
-				glm::ivec2 q = p + side;
-				bool blocked = path.count({q.x, q.y}) > 0;
-				for(const Rect &u : used)
-					blocked |= u.contains(q.x, q.y);
-				for(auto [lx, lz] : lamps)
-					blocked |= std::abs(lx - q.x) + std::abs(lz - q.y) < 5;
-				if(blocked)
-					continue;
-				int hh = H(q.x, q.y);
-				if(hh <= SEA_LEVEL)
-					continue;
-				lamps.insert({q.x, q.y});
-				bp.add({q.x, hh, q.y}, st.frame, Mode::Set);
-				bp.add({q.x, hh + 1, q.y}, st.frame, Mode::Set);
-				bp.add({q.x, hh + 2, q.y}, BlockType::Lantern, Mode::Set);
-			}
 }
 
 // ── Temple du désert : pyramide à degrés ────────────────────────

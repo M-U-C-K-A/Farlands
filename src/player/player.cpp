@@ -6,6 +6,7 @@
 #include "player.h"
 
 #include "../world/block.h"
+#include "../world/block_shape.h"
 #include "../world/chunk.h"
 #include "../world/world.h"
 
@@ -123,18 +124,27 @@ void Player::moveHorizontal(float dx, float dz, const World &world)
 	for(int i = 0; i < steps; ++i)
 		{
 			// Collision par axe séparé (glisse le long des murs)
-			glm::vec3 p = m_position;
-			p.x += sx;
-			if(!collidesAt(world, p))
-				m_position.x = p.x;
-			else if(m_flying)
-				m_flyVelocity.x = 0.0f;
-			p = m_position;
-			p.z += sz;
-			if(!collidesAt(world, p))
-				m_position.z = p.z;
-			else if(m_flying)
-				m_flyVelocity.z = 0.0f;
+			for(int axis = 0; axis < 2; ++axis)
+				{
+					glm::vec3 p = m_position;
+					(axis == 0 ? p.x : p.z) += axis == 0 ? sx : sz;
+					if(!collidesAt(world, p))
+						{
+							m_position = p;
+							continue;
+						}
+					// Marche automatique sur les dalles et escaliers (au sol)
+					glm::vec3 up = p + glm::vec3(0.0f, STEP_HEIGHT, 0.0f);
+					if(!m_flying && m_onGround
+					   && !collidesAt(world, m_position + glm::vec3(0.0f, STEP_HEIGHT, 0.0f))
+					   && !collidesAt(world, up))
+						{
+							m_position = up;
+							continue;
+						}
+					if(m_flying)
+						(axis == 0 ? m_flyVelocity.x : m_flyVelocity.z) = 0.0f;
+				}
 		}
 }
 
@@ -199,12 +209,17 @@ void Player::moveVertical(float dy, const World &world)
 
 	if(dy < 0.0f)
 		{
-			// Atterrissage : se poser exactement sur le dessus du bloc
-			float top = std::floor(newPos.y) + 1.0f;
-			glm::vec3 snapped = m_position;
-			snapped.y = top;
-			if(top <= m_position.y && !collidesAt(world, snapped))
-				m_position.y = top;
+			// Atterrissage : se poser sur le dessus du bloc ou de la demi-dalle
+			for(float top : {std::floor(newPos.y) + 1.0f, std::floor(newPos.y) + 0.5f})
+				{
+					glm::vec3 snapped = m_position;
+					snapped.y = top;
+					if(top <= m_position.y && top >= newPos.y && !collidesAt(world, snapped))
+						{
+							m_position.y = top;
+							break;
+						}
+				}
 			m_onGround = true;
 		}
 	else
@@ -283,20 +298,21 @@ bool Player::collidesAt(const World &world, const glm::vec3 &pos) const
 					for(int bz = bMinZ; bz <= bMaxZ; ++bz)
 						{
 							BlockType block = world.getBlockAt(bx, by, bz);
-							if(BlockDatabase::IsSolid(block))
+							if(!BlockDatabase::IsSolid(block))
+								continue;
+							// Boîtes du bloc (cube, ou forme : dalle, escalier, barrière...)
+							ShapeBox boxes[6];
+							int count = shape::boxes(
+							  block,
+							  [&](int dx, int dz) { return world.getBlockAt(bx + dx, by, bz + dz); },
+							  true, boxes);
+							for(int i = 0; i < count; ++i)
 								{
-									// Le bloc occupe [bx, bx+1] × [by, by+1]
-									// × [bz, bz+1] Vérifier le chevauchement
-									// AABB
-									if(maxX > static_cast<float>(bx)
-									   && minX < static_cast<float>(bx + 1)
-									   && maxY > static_cast<float>(by)
-									   && minY < static_cast<float>(by + 1)
-									   && maxZ > static_cast<float>(bz)
-									   && minZ < static_cast<float>(bz + 1))
-										{
-											return true;
-										}
+									glm::vec3 lo = glm::vec3(bx, by, bz) + boxes[i].lo;
+									glm::vec3 hi = glm::vec3(bx, by, bz) + boxes[i].hi;
+									if(maxX > lo.x && minX < hi.x && maxY > lo.y && minY < hi.y
+									   && maxZ > lo.z && minZ < hi.z)
+										return true;
 								}
 						}
 				}

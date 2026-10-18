@@ -36,35 +36,34 @@
 <text x="624" y="442" fill="#9198a1"><tspan fill="#ab7df8">ao</tspan> = side1 &amp;&amp; side2 ? 3 : side1 + side2 + corner</text>
 <text x="624" y="463" fill="#9198a1"><tspan fill="#ab7df8">ambient</tspan> *= (1 − 0.2·ao)²   ·   flip if ao₀ + ao₂ &gt; ao₁ + ao₃</text>
 </g>
-<text x="0" y="514" class="sans" font-size="16" font-weight="700" fill="#e6edf3">3 · A 20-byte vertex</text>
-<text x="0" y="532" class="sans small">Position inside the chunk, one packed word and a biome tint (RGBA8 on [0, 2], 0x80 = 1.0).</text>
-<rect x="0.0" y="548" width="700.2" height="26" rx="5" fill="#4493f8" fill-opacity=".14" stroke="#4493f8"/><text x="351.6" y="565" text-anchor="middle" class="mono" font-size="11.5" fill="#e6edf3">pos · 3 × float32</text>
-<rect x="703.2" y="548" width="231.4" height="26" rx="5" fill="#ab7df8" fill-opacity=".14" stroke="#ab7df8"/><text x="820.4" y="565" text-anchor="middle" class="mono" font-size="11.5" fill="#e6edf3">data · uint32</text>
-<rect x="937.6" y="548" width="231.4" height="26" rx="5" fill="#3fb950" fill-opacity=".14" stroke="#3fb950"/><text x="1054.8" y="565" text-anchor="middle" class="mono" font-size="11.5" fill="#e6edf3">tint · RGBA8</text>
+<text x="0" y="514" class="sans" font-size="16" font-weight="700" fill="#e6edf3">3 · A 16-byte vertex</text>
+<text x="0" y="532" class="sans small">16-bit fixed-point position and texture coordinates, one packed word, a biome tint (RGB8 on [0, 2]) whose alpha holds the block light.</text>
+<rect x="0.0" y="548" width="436.5" height="26" rx="5" fill="#4493f8" fill-opacity=".14" stroke="#4493f8"/><text x="219.8" y="565" text-anchor="middle" class="mono" font-size="11.5" fill="#e6edf3">pos · 3 × uint16</text>
+<rect x="439.5" y="548" width="143.5" height="26" rx="5" fill="#4493f8" fill-opacity=".14" stroke="#4493f8"/><text x="512.8" y="565" text-anchor="middle" class="mono" font-size="11.5" fill="#e6edf3">uv · 2 × u8</text>
+<rect x="586.0" y="548" width="290.0" height="26" rx="5" fill="#ab7df8" fill-opacity=".14" stroke="#ab7df8"/><text x="732.5" y="565" text-anchor="middle" class="mono" font-size="11.5" fill="#e6edf3">data · uint32</text>
+<rect x="879.0" y="548" width="290.0" height="26" rx="5" fill="#3fb950" fill-opacity=".14" stroke="#3fb950"/><text x="1025.5" y="565" text-anchor="middle" class="mono" font-size="11.5" fill="#e6edf3">tint · RGBA8</text>
 <text x="0.0" y="588" text-anchor="start" class="mono" font-size="9" fill="#656c76">0 B</text>
-<text x="234.4" y="588" text-anchor="middle" class="mono" font-size="9" fill="#656c76">4 B</text>
-<text x="468.8" y="588" text-anchor="middle" class="mono" font-size="9" fill="#656c76">8 B</text>
-<text x="703.2" y="588" text-anchor="middle" class="mono" font-size="9" fill="#656c76">12 B</text>
-<text x="937.6" y="588" text-anchor="middle" class="mono" font-size="9" fill="#656c76">16 B</text>
-<text x="1172.0" y="588" text-anchor="end" class="mono" font-size="9" fill="#656c76">20 B</text>
-<path d="M703.2,574 L0,614 M934.6,574 L1172.0,614" stroke="#ab7df8" stroke-opacity=".5" stroke-dasharray="3 3" fill="none"/>
-<rect x="805.8" y="618" width="364.2" height="26" rx="4" fill="#4493f8" fill-opacity=".14" stroke="#4493f8"/><text x="987.9" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">texture layer</text>
-<rect x="695.9" y="618" width="107.9" height="26" rx="4" fill="#39c5cf" fill-opacity=".14" stroke="#39c5cf"/><text x="749.8" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">normal</text>
-<rect x="622.6" y="618" width="71.2" height="26" rx="4" fill="#ab7df8" fill-opacity=".14" stroke="#ab7df8"/><text x="658.2" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">AO</text>
-<rect x="549.4" y="618" width="71.2" height="26" rx="4" fill="#656c76" fill-opacity=".14" stroke="#656c76"/><text x="585.0" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">u v</text>
-<rect x="256.4" y="618" width="291.0" height="26" rx="4" fill="#3fb950" fill-opacity=".14" stroke="#3fb950"/><text x="401.9" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">block id</text>
-<rect x="183.1" y="618" width="71.2" height="26" rx="4" fill="#f0883e" fill-opacity=".14" stroke="#f0883e"/><text x="218.8" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">wave</text>
-<rect x="109.9" y="618" width="71.2" height="26" rx="4" fill="#f85149" fill-opacity=".14" stroke="#f85149"/><text x="145.5" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">blend</text>
-<rect x="36.6" y="618" width="71.2" height="26" rx="4" fill="#f85149" fill-opacity=".14" stroke="#f85149"/><text x="72.2" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">count</text>
-<rect x="0.0" y="618" width="34.6" height="26" rx="4" fill="#21262d" fill-opacity=".14" stroke="#21262d"/><text x="17.3" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3"></text>
+<text x="293.0" y="588" text-anchor="middle" class="mono" font-size="9" fill="#656c76">4 B</text>
+<text x="586.0" y="588" text-anchor="middle" class="mono" font-size="9" fill="#656c76">8 B</text>
+<text x="879.0" y="588" text-anchor="middle" class="mono" font-size="9" fill="#656c76">12 B</text>
+<text x="1172.0" y="588" text-anchor="end" class="mono" font-size="9" fill="#656c76">16 B</text>
+<path d="M586.0,574 L0,614 M876.0,574 L1172.0,614" stroke="#ab7df8" stroke-opacity=".5" stroke-dasharray="3 3" fill="none"/>
+<rect x="806.8" y="618" width="364.2" height="26" rx="4" fill="#4493f8" fill-opacity=".14" stroke="#4493f8"/><text x="988.9" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">texture layer</text>
+<rect x="696.9" y="618" width="107.9" height="26" rx="4" fill="#39c5cf" fill-opacity=".14" stroke="#39c5cf"/><text x="750.8" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">normal</text>
+<rect x="623.6" y="618" width="71.2" height="26" rx="4" fill="#ab7df8" fill-opacity=".14" stroke="#ab7df8"/><text x="659.2" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">AO</text>
+<rect x="330.6" y="618" width="291.0" height="26" rx="4" fill="#3fb950" fill-opacity=".14" stroke="#3fb950"/><text x="476.1" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">block id</text>
+<rect x="257.4" y="618" width="71.2" height="26" rx="4" fill="#f0883e" fill-opacity=".14" stroke="#f0883e"/><text x="293.0" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">wave</text>
+<rect x="184.1" y="618" width="71.2" height="26" rx="4" fill="#f85149" fill-opacity=".14" stroke="#f85149"/><text x="219.8" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">blend</text>
+<rect x="74.2" y="618" width="107.9" height="26" rx="4" fill="#f85149" fill-opacity=".14" stroke="#f85149"/><text x="128.2" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3">count</text>
+<rect x="0.0" y="618" width="71.2" height="26" rx="4" fill="#21262d" fill-opacity=".14" stroke="#21262d"/><text x="36.6" y="635" text-anchor="middle" class="mono" font-size="10.5" fill="#e6edf3"></text>
 <text x="1153.7" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">0</text>
 <text x="787.4" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">10</text>
 <text x="677.6" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">13</text>
 <text x="604.3" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">15</text>
-<text x="531.1" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">17</text>
+<text x="311.3" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">23</text>
 <text x="238.1" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">25</text>
 <text x="164.8" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">27</text>
-<text x="91.6" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">29</text>
+<text x="54.9" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">30</text>
 <text x="18.3" y="658" text-anchor="middle" class="mono" font-size="9" fill="#656c76">31</text>
-<text x="0" y="680" class="sans small">blend + count: neighbouring surface (grass, sand, snow) and how many blocks around the corner use it — the shader turns them into pixel-art transitions.</text>
+<text x="0" y="680" class="sans small">blend + count: neighbouring surface (grass, sand, snow) and its share around the corner, in quarters — the shader turns them into pixel-art transitions.</text>
 </svg>
