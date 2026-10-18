@@ -21,7 +21,7 @@
 //        bits [17..24] type de bloc
 //        bits [25..26] ondulation (0 aucune, 1 feuillage, 2 haut de plante)
 //        bits [27..28] mélange de surface (0 aucun, 1 herbe, 2 sable, 3 neige)
-//        bits [29..30] blocs voisins du type mélangé autour du coin (0..3)
+//        bits [29..31] part du type mélangé autour du coin, en quarts (0..4)
 // tint : couleur multiplicative RGBA8 encodée sur [0, 2] (0x80 = 1.0), pour
 //        pouvoir aussi éclaircir/saturer (teinte de biome)
 struct Vertex
@@ -38,7 +38,7 @@ struct Vertex
 		return (layer & 0x3FFu) | ((normal & 7u) << 10) | ((ao & 3u) << 13)
 			   | ((u & 1u) << 15) | ((v & 1u) << 16)
 			   | ((blockType & 0xFFu) << 17) | ((wave & 3u) << 25)
-			   | ((blendKind & 3u) << 27) | ((blendCount & 3u) << 29);
+			   | ((blendKind & 3u) << 27) | ((blendCount & 7u) << 29);
 	}
 
 	// Fournit à Vulkan la description de la structure globale du Vertex

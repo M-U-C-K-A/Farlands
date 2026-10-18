@@ -1,7 +1,8 @@
 // -----------------------------------------------------------------------------
 // Fichier : player.h
 // Rôle : Contrôleur joueur first-person (FPS).
-// Gère les entrées clavier/souris, la gravité, les collisions AABB complètes.
+// Gère les entrées clavier/souris, la gravité, les collisions AABB complètes,
+// le sprint (Ctrl) et le vol créatif (double Espace ou F).
 // -----------------------------------------------------------------------------
 #pragma once
 
@@ -51,6 +52,19 @@ class Player
 	glm::vec3 getHorizontalFront() const;
 
 	bool isOnGround() const { return m_onGround; }
+	bool isFlying() const { return m_flying; }
+	void setFlying(bool flying);
+	/// Sprint en cours (Ctrl + avancer) : élargit le champ de vision
+	bool isSprinting() const { return m_sprinting; }
+	/// Multiplicateur de la vitesse de vol (réglage)
+	void setFlySpeed(float mul) { m_flySpeedMul = mul; }
+	/// Le mode vol vient de changer (pour une notification) ; remis à faux
+	bool consumeFlyToggled()
+	{
+		bool t = m_flyToggled;
+		m_flyToggled = false;
+		return t;
+	}
 	bool isInWater() const { return m_inWater; }
 	glm::vec3 getPosition() const { return m_position; }
 	glm::vec3 getVelocity() const { return m_velocity; }
@@ -68,6 +82,14 @@ class Player
 	float m_pitch;
 	bool m_onGround;
 	bool m_inWater = false;
+	bool m_flying = false;
+	bool m_flyToggled = false;
+	bool m_sprinting = false;
+	float m_flySpeedMul = 1.0f;
+	glm::vec3 m_flyVelocity{0.0f}; // vitesse lissée en vol
+	bool m_spaceWasDown = false;
+	bool m_flyKeyWasDown = false;
+	double m_lastSpacePress = -1.0;
 
 	// ── Constantes physiques ────────────────────────────────────
 	static constexpr float GRAVITY = -20.0f;
@@ -77,6 +99,11 @@ class Player
 	static constexpr float WATER_GRAVITY_SCALE = 0.25f;
 	static constexpr float WATER_SPEED_SCALE = 0.6f;
 	static constexpr float MOVE_SPEED = 6.0f;
+	static constexpr float SPRINT_SCALE = 1.45f;
+	static constexpr float FLY_SPEED = 14.0f;       // horizontal (blocs/s)
+	static constexpr float FLY_VERTICAL = 10.0f;    // montée / descente
+	static constexpr float FLY_SPRINT_SCALE = 3.0f; // Ctrl en vol
+	static constexpr float DOUBLE_TAP = 0.3f;       // secondes
 	static constexpr float MOUSE_SENSITIVITY = 0.1f;
 	static constexpr float PLAYER_HEIGHT = 1.8f;
 	static constexpr float EYE_HEIGHT = 1.62f;
@@ -89,4 +116,6 @@ class Player
 	bool isInWater(const World &world) const;
 	/// Déplace verticalement de dy en résolvant les collisions
 	void moveVertical(float dy, const World &world);
+	/// Déplace horizontalement (axes séparés, sous-pas anti-traversée)
+	void moveHorizontal(float dx, float dz, const World &world);
 };

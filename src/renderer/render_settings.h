@@ -12,6 +12,7 @@ enum class ShaderPreset : int
 	Realistic = 0, // journée claire, lac turquoise
 	GoldenHour,    // soleil bas, brume dorée, rayons volumétriques
 	Horror,        // ciel couvert, brouillard dense, couleurs délavées
+	Night,         // clair de lune, étoiles, lanternes et torches
 	Custom,        // réglages modifiés à la main
 	Count
 };
@@ -24,6 +25,7 @@ struct RenderSettings
 	int renderDistance = 20; // chunks complets (blocs éditables)
 	int lodDistance = 2048;  // terrain lointain simplifié (blocs, 0 = aucun)
 	bool fallingLeaves = true;
+	float flySpeed = 1.0f; // multiplicateur de la vitesse de vol
 
 	// Image
 	float renderScale = 1.0f; // résolution interne / résolution écran
@@ -35,6 +37,8 @@ struct RenderSettings
 	float sunElevation = 28.0f; // degrés au-dessus de l'horizon
 	float sunAzimuth = 215.0f;  // degrés
 	bool squareSun = false;     // disque solaire carré (style Minecraft)
+	bool night = false;         // nuit : la lune éclaire (azimut opposé au soleil)
+	float moonElevation = 34.0f;
 
 	// Ombres
 	bool shadows = true;
@@ -77,6 +81,7 @@ inline const char *presetName(ShaderPreset p)
 		case ShaderPreset::Realistic: return "Realistic";
 		case ShaderPreset::GoldenHour: return "Golden Hour";
 		case ShaderPreset::Horror: return "Horror";
+		case ShaderPreset::Night: return "Night";
 		default: return "Custom";
 		}
 }
@@ -89,6 +94,8 @@ inline void applyPreset(RenderSettings &s, ShaderPreset p)
 	s.preset = p;
 	s.sunElevation = d.sunElevation;
 	s.squareSun = false;
+	s.night = false;
+	s.moonElevation = d.moonElevation;
 	s.clouds = true;
 	s.cloudCoverage = d.cloudCoverage;
 	s.cloudDensity = d.cloudDensity;
@@ -143,6 +150,21 @@ inline void applyPreset(RenderSettings &s, ShaderPreset p)
 			s.colorFilter = glm::vec3(0.96f, 0.94f, 0.86f);
 			s.shadowTint = glm::vec3(0.80f, 0.88f, 0.78f);
 			s.vignette = 0.8f;
+			break;
+		case ShaderPreset::Night:
+			s.night = true;
+			s.cloudCoverage = 0.46f;
+			s.fogDensity = 1.3f;
+			s.volumetricDensity = 0.7f;
+			s.mistHeight = 18.0f;
+			s.lightShafts = 1.5f;
+			s.bloomStrength = 0.11f;
+			s.exposure = 2.3f;
+			s.saturation = 0.85f;
+			s.contrast = 1.06f;
+			s.colorFilter = glm::vec3(0.90f, 0.96f, 1.10f);
+			s.shadowTint = glm::vec3(0.82f, 0.90f, 1.18f);
+			s.vignette = 0.55f;
 			break;
 		default: break;
 		}

@@ -36,9 +36,13 @@ struct DebugInfo
 	int lodTiles = 0;
 	int particles = 0;
 
+	uint32_t worldSeed = 0;
+	bool amplifiedWorld = false;
+
 	// ── Joueur ──────────────────────────────────────────────────
 	glm::vec3 position{0.0f};
 	std::string biome;
+	bool flying = false;
 
 	// ── Rendu ───────────────────────────────────────────────────
 	Renderer::Stats render;

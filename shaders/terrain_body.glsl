@@ -21,11 +21,18 @@ layout(location = 5) in float vViewDepth;
 layout(location = 6) flat in uint vBlock;
 layout(location = 7) flat in uint vBlendKind;
 layout(location = 8) in float vBlendWeight;
+layout(location = 9) in float vBlockLight;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out float outDepth;
 
 bool isLeaves(uint b) { return b == 7u || b == 17u || b == 19u || b == 21u; }
+// Lanterne, torche, citrouille-lanterne : parties claires de la texture émissives
+bool isEmissive(uint b) { return b == 35u || b == 36u || b == 46u; }
+
+const vec3 BLOCK_LIGHT_COLOR = vec3(1.0, 0.66, 0.36);
+const float BLOCK_LIGHT_INTENSITY = 2.6;
+const float EMISSIVE_INTENSITY = 7.0;
 
 const uint BLOCK_GRASS = 2u, BLOCK_SAND = 8u, BLOCK_SNOW = 15u;
 
@@ -41,21 +48,27 @@ float hash12(vec2 p)
     return fract((p3.x + p3.y) * p3.z);
 }
 
-// Transition douce entre deux surfaces (herbe/sable/neige) sur le dessus des
-// blocs : masque en pixel art (16 texels par bloc) + bruit à grande échelle.
-// Les deux faces d'une frontière utilisent le même champ "A" (type d'id le
-// plus petit), ce qui rend le motif continu d'un bloc à l'autre.
+// Transition douce entre deux surfaces (herbe/sable/neige) : masque en pixel
+// art (16 texels par bloc) + bruit à grande échelle. Les deux faces d'une
+// frontière utilisent le même champ "A" (type d'id le plus petit), ce qui
+// rend le motif continu d'un bloc à l'autre. Sur les flancs d'une marche, le
+// poids varie verticalement jusqu'au dessus du voisin en contrebas.
 vec3 surfaceBlend(vec3 selfAlbedo, vec3 world)
 {
-    if (vBlendKind == 0u || vNormal != 2u) return selfAlbedo;
+    if (vBlendKind == 0u || vNormal == 3u || vNormal == 6u) return selfAlbedo;
     uint partnerId = blendBlockId(vBlendKind);
     float layer = vBlendKind == 1u ? u.blendLayers.x : (vBlendKind == 2u ? u.blendLayers.y : u.blendLayers.z);
     vec3 partner = texture(blockAlbedo, vec3(vUV.xy, layer)).rgb;
     if (partnerId == BLOCK_GRASS) partner *= vTint;
 
-    vec2 texel = floor(world.xz * 16.0);
-    float fine = hash12(texel);
-    float coarse = texture(cloudNoise, vec3(world.xz * 0.11, 0.37)).a;
+    // Coordonnées du motif dans le plan de la face (légèrement à l'intérieur
+    // du bloc : pas de scintillement sur les arêtes entières)
+    vec3 inner = world - faceNormal(vNormal) * 0.001;
+    vec2 facePos = vNormal == 2u ? inner.xz
+                 : (vNormal <= 1u ? vec2(inner.x, inner.y) : vec2(inner.z, inner.y));
+    vec2 texel = floor(facePos * 16.0);
+    float fine = hash12(texel + (vNormal == 2u ? vec2(0.0) : vec2(517.0, 0.0)));
+    float coarse = texture(cloudNoise, vec3(inner.xz * 0.11, 0.37)).a;
     float n = clamp(0.5 + (fine - 0.5) * 0.45 + (coarse - 0.5) * 1.1, 0.0, 1.0);
 
     bool selfIsA = vBlock < partnerId;
@@ -132,7 +145,17 @@ void main()
         ambient *= exp(-WATER_ABSORPTION * depthBelow * 0.7);
     }
 
-    vec3 color = albedo * (sun / PI + ambient);
+    // Lumière des blocs : décroissance exponentielle par niveau (~ Minecraft)
+    float level = vBlockLight * 15.0;
+    float blockLight = level > 0.5 ? pow(0.80, 15.0 - level) : 0.0;
+    vec3 torch = BLOCK_LIGHT_COLOR * blockLight * BLOCK_LIGHT_INTENSITY * mix(1.0, ao, 0.6);
+
+    vec3 color = albedo * (sun / PI + ambient + torch);
+    if (isEmissive(vBlock))
+    {
+        float lum = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
+        color += albedo * smoothstep(0.22, 0.65, lum) * EMISSIVE_INTENSITY;
+    }
 
     // Légère brillance de la neige
     if (vBlock == 15u)

@@ -26,6 +26,7 @@ enum class BiomeType : uint8_t
 	Taiga,
 	CherryGrove,
 	SnowyPeaks,
+	Amplified, // pics amplifiés : aiguilles vertigineuses, surplombs
 	Count
 };
 

@@ -60,6 +60,8 @@ class Renderer
 	// ── Terrain lointain (LOD) ──────────────────────────────────
 	void setLodMesh(const LodMesh &mesh);
 	void removeLodMesh(const glm::ivec2 &tile);
+	/// Retire tous les meshes (changement de monde)
+	void clearWorldMeshes();
 
 	// ── Particules (feuilles qui tombent) ───────────────────────
 	void setParticles(const std::vector<ParticleInstance> &instances);
@@ -74,6 +76,11 @@ class Renderer
 
 	VkDescriptorSet getPanoramaTextureId() const { return m_panoramaId; }
 	VkDescriptorSet getLogoTextureId() const { return m_logoId; }
+	/// Icône (texture de face) d'un bloc pour la barre d'inventaire
+	ImTextureID getBlockIcon(BlockType type) const
+	{
+		return (ImTextureID)m_blockIcons[static_cast<uint8_t>(type)];
+	}
 
 	/// Passes chronométrées sur le GPU
 	enum Pass
@@ -279,6 +286,9 @@ class Renderer
 	VkDescriptorPool m_imguiPool = VK_NULL_HANDLE;
 	VkDescriptorSet m_panoramaId = VK_NULL_HANDLE;
 	VkDescriptorSet m_logoId = VK_NULL_HANDLE;
+	std::vector<GpuImage> m_iconImages;
+	std::array<VkDescriptorSet, 256> m_blockIcons{};
+	void loadBlockIcons();
 
 	// ── Capture d'écran ─────────────────────────────────────────
 	std::string m_screenshotPath;
