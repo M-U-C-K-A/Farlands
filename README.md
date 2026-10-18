@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="docs/assets/hero.svg" alt="Farlands — a voxel engine built from scratch in C++ and Vulkan" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/hero-light.svg">
+    <img src="docs/assets/hero-light.svg" alt="Farlands — a voxel engine built from scratch in C++ and Vulkan, next to an isometric island cut from the real seed-42 world" width="100%">
+  </picture>
 </p>
 
 <p align="center">
@@ -117,7 +121,7 @@
     <td valign="top" width="50%">
 
 **🌍 World**
-- **Infinite** X/Z world of 16 × 256 × 16 chunks, render distance up to 32 chunks
+- **Infinite** X/Z world of 16 × 256 × 16 chunks, render distance up to 48 chunks
 - **Multithreaded** streaming: a job system generates and meshes chunks in the background, nearest first
 - Terrain from Perlin fBm: continents, lakes, **ridged multifractal mountains** with domain warping, snow line and rocky cliffs
 - **10 biomes**: Ocean, Beach, Plains, Forest, Desert, Mountains, Taiga, Snowy Taiga, Cherry Grove, Snowy Peaks
@@ -211,19 +215,15 @@ Everything can be tuned live in **Options**, and the *Performance* tab shows whe
 
 ### One frame
 
-The CPU streams the world, moves the player, then records a single command buffer. The scene is rendered off-screen in HDR and composed into the swapchain at the end:
+The main thread streams the world, moves the player and records a single command buffer, while worker threads build chunks and far-terrain tiles. The scene is rendered off-screen in HDR and composed into the swapchain at the end:
 
-```mermaid
-flowchart LR
-    A[Sky LUT<br/>256×128] --> B[Sky environment<br/>+ clouds, 512×256]
-    B --> C[Clouds<br/>½ resolution]
-    C --> D[Shadow map<br/>cached]
-    D --> E[Scene<br/>chunks · far terrain · leaves · sky]
-    E --> F[Water<br/>SSR · refraction]
-    F --> G[Volumetric fog<br/>½ resolution]
-    G --> H[Bloom<br/>5 mips]
-    H --> I[Composite<br/>god rays · grading · ACES · UI]
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/frame-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/frame-light.svg">
+    <img src="docs/assets/frame-light.svg" alt="One frame: main thread (input, world and LOD update, uploads, leaves and culling, record), worker threads (job queue, chunk generation, meshing, far-terrain tiles) and the seven GPU passes from sky to composite" width="100%">
+  </picture>
+</p>
 
 All passes share one pipeline layout: a global descriptor set (uniforms, texture arrays, shadow map, sky, render targets) and 32 bytes of push constants (the chunk origin relative to the camera).
 
@@ -255,9 +255,25 @@ A **preset** (`applyPreset()` in `render_settings.h`) only changes the mood — 
 
 `World::update()` runs on the main thread every frame. When the player enters a new chunk it queues **generation jobs** for every missing chunk within the render distance + 1, sorted by distance, and unloads chunks beyond + 2.5. Worker threads generate chunks; as soon as a chunk and its 8 neighbours exist, a **meshing job** builds its mesh from an immutable 3×3 neighbourhood (`shared_ptr<const Chunk>`). Finished meshes are uploaded to their own GPU buffer, a few dozen per frame; replaced buffers are destroyed once no frame in flight uses them.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/streaming-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/streaming-light.svg">
+    <img src="docs/assets/streaming-light.svg" alt="Animated top-down grid: chunks are queued, generated then meshed nearest first by the worker threads, and dropped beyond the unload radius as the player walks east" width="100%">
+  </picture>
+</p>
+
 ### Terrain generation
 
 `TerrainGenerator::getHeightAt()` combines continents, hills and detail fBm, deepens oceans, carves lakes into valleys, and raises mountains with a **ridged multifractal** (Musgrave) behind domain warping, softly compressed below the world ceiling. The biome is chosen from the height (ocean, beach, mountains, snowy peaks) then from temperature × humidity. Surfaces follow the slope: rock on cliffs, snow above the snow line, two layers of grass on medium slopes. Trees are placed on a jittered 5×5 grid hashed from the world seed, so a tree spanning several chunks is identical in each of them.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/terrain-slice-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/terrain-slice-light.svg">
+    <img src="docs/assets/terrain-slice-light.svg" alt="Pixel-perfect cross-section of 640 columns of the seed-42 world at z = -672: lake, taiga, beach, plains, desert and a snowy mountain, with the sea level and the snow line" width="100%">
+  </picture>
+</p>
 
 <p align="center">
   <img src="docs/assets/terrain-map.jpg" alt="Top-down map of 2304 by 2304 blocks rendered by terrain_preview: lakes, forests, cherry groves in pink and snowy mountain ranges" width="70%"><br>
@@ -269,10 +285,14 @@ A **preset** (`applyPreset()` in `render_settings.h`) only changes the mood — 
 `buildChunkMesh()` emits a face only when the neighbour doesn't hide it, looks into the neighbouring chunks, and computes a per-vertex **ambient occlusion** factor from the two sides and the corner, flipping the quad diagonal to avoid anisotropy. Plants are two crossed double-sided quads, water surfaces are lowered to 7/8 of a block, and the indices are split into **opaque**, **cutout** (leaves, plants, glass) and **water** ranges so that the opaque bulk renders without `discard`.
 
 <p align="center">
-  <img src="docs/assets/meshing.svg" alt="Left: cross-section where interior faces are culled. Right: isometric AO demo where blocks appear one by one and the corner darkens from 1 to 0" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/meshing-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/meshing-light.svg">
+    <img src="docs/assets/meshing-light.svg" alt="Face visibility rules on a cross-section with water and a tree, an animated per-vertex AO demo going from level 0 to 3, and the bit layout of the 20-byte vertex" width="100%">
+  </picture>
 </p>
 
-A vertex is **20 bytes**: the position inside the chunk, a packed word (texture layer, normal, AO, UV corner, block id, wave flag) and an RGBA8 biome tint.
+A vertex is **20 bytes**: the position inside the chunk, a packed word (texture layer, normal, AO, UV corner, block id, wave flag, surface blend) and an RGBA8 biome tint.
 
 ### Surface transitions and falling leaves
 
@@ -285,7 +305,11 @@ Top faces of grass, sand and snow store, per vertex, the neighbouring surface ty
 Blocks are data-driven: `BlockDatabase` loads `assets/data/blocks.json` at start-up. Each entry gives its flags, how it is rendered, its biome tint and one texture per face.
 
 <p align="center">
-  <img src="docs/assets/blocks.svg" alt="The original 14 visible blocks rendered as textured isometric cubes" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/blocks-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/blocks-light.svg">
+    <img src="docs/assets/blocks-light.svg" alt="All 26 visible blocks with their real textures: cubes, cutout leaves and glass, cross-shaped plants and the lowered water block" width="100%">
+  </picture>
 </p>
 
 ```json
@@ -309,7 +333,11 @@ Blocks are data-driven: `BlockDatabase` loads `assets/data/blocks.json` at start
 Only chunks modified by the player are written to `~/.farlands/world` (block editing is not implemented yet, so the world is regenerated from the seed). Chunks are stored x-first, then y, then z, as runs of `[type: u8][count: u16]` after a magic number and a version; older or corrupted files are simply regenerated.
 
 <p align="center">
-  <img src="docs/assets/chunk-format.svg" alt="Hex dump of a chunk file: magic FLCH, version, chunk coordinates, then RLE runs" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/chunk-format-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/chunk-format-light.svg">
+    <img src="docs/assets/chunk-format-light.svg" alt="Hex dump of a real chunk file: magic FLCH, version 3, chunk coordinates, then RLE runs; a 65 536-block chunk stored in 5 590 bytes" width="100%">
+  </picture>
 </p>
 
 ---
