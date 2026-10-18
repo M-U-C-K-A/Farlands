@@ -3,7 +3,7 @@
 // Terrain : sommets compacts des chunks, positions relatives à la caméra.
 #include "common.glsl"
 
-layout(location = 0) in vec3 inPos;   // locale au chunk
+layout(location = 0) in uvec4 inPos;  // position locale au chunk (fixe), uv
 layout(location = 1) in uint inData;
 layout(location = 2) in vec4 inTint;
 
@@ -21,12 +21,12 @@ layout(location = 9) out float vBlockLight;    // lumière des lanternes / torch
 void main()
 {
     VertexData v = unpackVertex(inData);
-    vec3 rel = inPos + pc.a.xyz;
+    vec3 rel = vertexPosition(inPos) + pc.a.xyz;
     rel += windOffset(rel + u.cameraPos.xyz, v.wave);
 
     gl_Position = u.viewProj * vec4(rel, 1.0);
     vRel = rel;
-    vUV = vec3(v.uv, float(v.layer));
+    vUV = vec3(vertexUV(inPos), float(v.layer));
     vNormal = v.normal;
     vAO = float(v.ao);
     vTint = inTint.rgb * 2.0; // teinte encodée sur [0, 2]

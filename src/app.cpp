@@ -10,6 +10,7 @@
 #include "world/biome.h"
 #include "world/block.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -466,6 +467,22 @@ void Application::updateCamera(float time)
 }
 
 // ── Construction ────────────────────────────────────────────────
+namespace
+	{
+		// Nom lisible d'un bloc : "Roof_Tile_Stairs_N" -> "Roof Tile Stairs"
+		std::string displayName(BlockType t)
+		{
+			const BlockData &d = BlockDatabase::Get(t);
+			std::string n = d.name;
+			if(d.renderType == RenderType::Stairs && n.size() > 2)
+				n.resize(n.size() - 2);
+			if(d.renderType == RenderType::Door)
+				n = "Oak_Door";
+			std::replace(n.begin(), n.end(), '_', ' ');
+			return n;
+		}
+	}
+
 // Parcours des voxels traversés par le regard (Amanatides & Woo)
 Application::RayHit Application::raycastBlock(float maxDist) const
 {
@@ -523,7 +540,7 @@ void Application::updateBuilding(float time)
 	if(slot != m_hotbarSlot)
 		{
 			m_hotbarSlot = slot;
-			notify(BlockDatabase::Get(m_hotbar[slot]).name);
+			notify(displayName(m_hotbar[slot]));
 		}
 
 	m_target = raycastBlock(7.0f);
@@ -533,6 +550,14 @@ void Application::updateBuilding(float time)
 			if(lmb && (!m_lmbWas || time >= m_nextBreak) && m_target.type != BlockType::Bedrock)
 				{
 					m_world->setBlockAt(b.x, b.y, b.z, BlockType::Air);
+					// Porte : l'autre moitié part avec
+					const BlockData &bd = BlockDatabase::Get(m_target.type);
+					if(bd.renderType == RenderType::Door)
+						{
+							int other = bd.doorTop ? b.y - 1 : b.y + 1;
+							if(BlockDatabase::Get(m_world->getBlockAt(b.x, other, b.z)).renderType == RenderType::Door)
+								m_world->setBlockAt(b.x, other, b.z, BlockType::Air);
+						}
 					m_nextBreak = time + 0.22f;
 				}
 			if(rmb && (!m_rmbWas || time >= m_nextPlace))
@@ -546,14 +571,36 @@ void Application::updateBuilding(float time)
 					bool inside = pp.x + 0.3f > p.x && pp.x - 0.3f < p.x + 1 && pp.z + 0.3f > p.z
 								  && pp.z - 0.3f < p.z + 1 && pp.y + 1.8f > p.y && pp.y < p.y + 1;
 					BlockType sel = m_hotbar[m_hotbarSlot];
-					if(replaceable && !(inside && BlockDatabase::IsSolid(sel)))
-						m_world->setBlockAt(p.x, p.y, p.z, sel);
+					// Escaliers et portes orientés selon le regard (Minecraft) :
+					// la marche haute s'éloigne, la porte fait face au joueur
+					const BlockData &sd = BlockDatabase::Get(sel);
+					glm::vec3 fr = m_player.getHorizontalFront();
+					int look = std::abs(fr.x) > std::abs(fr.z) ? (fr.x > 0 ? 1 : 3) : (fr.z > 0 ? 2 : 0);
+					if(sd.renderType == RenderType::Stairs)
+						sel = oriented(static_cast<BlockType>(static_cast<int>(sel) - sd.facing), look);
+					bool door = sd.renderType == RenderType::Door;
+					if(door)
+						{
+							BlockType lower = static_cast<BlockType>(static_cast<int>(BlockType::Oak_Door_Lower));
+							sel = oriented(lower, look + 2);
+						}
+					BlockType above = m_world->getBlockAt(p.x, p.y + 1, p.z);
+					bool roomAbove = above == BlockType::Air || BlockDatabase::Get(above).renderType == RenderType::Cross;
+					if(replaceable && !(inside && BlockDatabase::IsSolid(sel)) && (!door || roomAbove))
+						{
+							m_world->setBlockAt(p.x, p.y, p.z, sel);
+							if(door)
+								m_world->setBlockAt(p.x, p.y + 1, p.z, oriented(BlockType::Oak_Door_Upper, look + 2));
+						}
 					m_nextPlace = time + 0.22f;
 				}
 			if(mmb && !m_mmbWas && m_renderer.getBlockIcon(m_target.type))
 				{
-					m_hotbar[m_hotbarSlot] = m_target.type; // pipette
-					notify(BlockDatabase::Get(m_target.type).name);
+					// Pipette (une porte haute donne la porte)
+					const BlockData &td = BlockDatabase::Get(m_target.type);
+					BlockType pick = td.renderType == RenderType::Door ? BlockType::Oak_Door_Lower : m_target.type;
+					m_hotbar[m_hotbarSlot] = pick;
+					notify(displayName(pick));
 				}
 		}
 	m_lmbWas = lmb;

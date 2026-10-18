@@ -917,6 +917,1409 @@
                 0.87,
                 0.82
             ]
+        },
+        {
+            "id": 48,
+            "name": "Oak_Stairs_N",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_planks.png",
+            "facing": 0,
+            "color": [
+                0.66,
+                0.53,
+                0.32
+            ],
+            "colorTop": [
+                0.66,
+                0.53,
+                0.32
+            ]
+        },
+        {
+            "id": 49,
+            "name": "Oak_Stairs_E",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_planks.png",
+            "facing": 1,
+            "color": [
+                0.66,
+                0.53,
+                0.32
+            ],
+            "colorTop": [
+                0.66,
+                0.53,
+                0.32
+            ]
+        },
+        {
+            "id": 50,
+            "name": "Oak_Stairs_S",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_planks.png",
+            "facing": 2,
+            "color": [
+                0.66,
+                0.53,
+                0.32
+            ],
+            "colorTop": [
+                0.66,
+                0.53,
+                0.32
+            ]
+        },
+        {
+            "id": 51,
+            "name": "Oak_Stairs_W",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_planks.png",
+            "facing": 3,
+            "color": [
+                0.66,
+                0.53,
+                0.32
+            ],
+            "colorTop": [
+                0.66,
+                0.53,
+                0.32
+            ]
+        },
+        {
+            "id": 52,
+            "name": "Oak_Slab",
+            "renderType": "slab",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_planks.png",
+            "color": [
+                0.66,
+                0.53,
+                0.32
+            ],
+            "colorTop": [
+                0.66,
+                0.53,
+                0.32
+            ]
+        },
+        {
+            "id": 53,
+            "name": "Spruce_Stairs_N",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/spruce_planks.png",
+            "facing": 0,
+            "color": [
+                0.4,
+                0.29,
+                0.17
+            ],
+            "colorTop": [
+                0.4,
+                0.29,
+                0.17
+            ]
+        },
+        {
+            "id": 54,
+            "name": "Spruce_Stairs_E",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/spruce_planks.png",
+            "facing": 1,
+            "color": [
+                0.4,
+                0.29,
+                0.17
+            ],
+            "colorTop": [
+                0.4,
+                0.29,
+                0.17
+            ]
+        },
+        {
+            "id": 55,
+            "name": "Spruce_Stairs_S",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/spruce_planks.png",
+            "facing": 2,
+            "color": [
+                0.4,
+                0.29,
+                0.17
+            ],
+            "colorTop": [
+                0.4,
+                0.29,
+                0.17
+            ]
+        },
+        {
+            "id": 56,
+            "name": "Spruce_Stairs_W",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/spruce_planks.png",
+            "facing": 3,
+            "color": [
+                0.4,
+                0.29,
+                0.17
+            ],
+            "colorTop": [
+                0.4,
+                0.29,
+                0.17
+            ]
+        },
+        {
+            "id": 57,
+            "name": "Spruce_Slab",
+            "renderType": "slab",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/spruce_planks.png",
+            "color": [
+                0.4,
+                0.29,
+                0.17
+            ],
+            "colorTop": [
+                0.4,
+                0.29,
+                0.17
+            ]
+        },
+        {
+            "id": 58,
+            "name": "Cobblestone_Stairs_N",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/cobblestone.png",
+            "facing": 0,
+            "color": [
+                0.42,
+                0.42,
+                0.42
+            ],
+            "colorTop": [
+                0.42,
+                0.42,
+                0.42
+            ]
+        },
+        {
+            "id": 59,
+            "name": "Cobblestone_Stairs_E",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/cobblestone.png",
+            "facing": 1,
+            "color": [
+                0.42,
+                0.42,
+                0.42
+            ],
+            "colorTop": [
+                0.42,
+                0.42,
+                0.42
+            ]
+        },
+        {
+            "id": 60,
+            "name": "Cobblestone_Stairs_S",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/cobblestone.png",
+            "facing": 2,
+            "color": [
+                0.42,
+                0.42,
+                0.42
+            ],
+            "colorTop": [
+                0.42,
+                0.42,
+                0.42
+            ]
+        },
+        {
+            "id": 61,
+            "name": "Cobblestone_Stairs_W",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/cobblestone.png",
+            "facing": 3,
+            "color": [
+                0.42,
+                0.42,
+                0.42
+            ],
+            "colorTop": [
+                0.42,
+                0.42,
+                0.42
+            ]
+        },
+        {
+            "id": 62,
+            "name": "Cobblestone_Slab",
+            "renderType": "slab",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/cobblestone.png",
+            "color": [
+                0.42,
+                0.42,
+                0.42
+            ],
+            "colorTop": [
+                0.42,
+                0.42,
+                0.42
+            ]
+        },
+        {
+            "id": 63,
+            "name": "Stone_Brick_Stairs_N",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stone_bricks.png",
+            "facing": 0,
+            "color": [
+                0.48,
+                0.48,
+                0.49
+            ],
+            "colorTop": [
+                0.48,
+                0.48,
+                0.49
+            ]
+        },
+        {
+            "id": 64,
+            "name": "Stone_Brick_Stairs_E",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stone_bricks.png",
+            "facing": 1,
+            "color": [
+                0.48,
+                0.48,
+                0.49
+            ],
+            "colorTop": [
+                0.48,
+                0.48,
+                0.49
+            ]
+        },
+        {
+            "id": 65,
+            "name": "Stone_Brick_Stairs_S",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stone_bricks.png",
+            "facing": 2,
+            "color": [
+                0.48,
+                0.48,
+                0.49
+            ],
+            "colorTop": [
+                0.48,
+                0.48,
+                0.49
+            ]
+        },
+        {
+            "id": 66,
+            "name": "Stone_Brick_Stairs_W",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stone_bricks.png",
+            "facing": 3,
+            "color": [
+                0.48,
+                0.48,
+                0.49
+            ],
+            "colorTop": [
+                0.48,
+                0.48,
+                0.49
+            ]
+        },
+        {
+            "id": 67,
+            "name": "Stone_Brick_Slab",
+            "renderType": "slab",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stone_bricks.png",
+            "color": [
+                0.48,
+                0.48,
+                0.49
+            ],
+            "colorTop": [
+                0.48,
+                0.48,
+                0.49
+            ]
+        },
+        {
+            "id": 68,
+            "name": "Roof_Tiles",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/roof_tiles.png",
+            "color": [
+                0.69,
+                0.28,
+                0.19
+            ],
+            "colorTop": [
+                0.69,
+                0.28,
+                0.19
+            ]
+        },
+        {
+            "id": 69,
+            "name": "Roof_Tile_Stairs_N",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/roof_tiles.png",
+            "facing": 0,
+            "color": [
+                0.69,
+                0.28,
+                0.19
+            ],
+            "colorTop": [
+                0.69,
+                0.28,
+                0.19
+            ]
+        },
+        {
+            "id": 70,
+            "name": "Roof_Tile_Stairs_E",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/roof_tiles.png",
+            "facing": 1,
+            "color": [
+                0.69,
+                0.28,
+                0.19
+            ],
+            "colorTop": [
+                0.69,
+                0.28,
+                0.19
+            ]
+        },
+        {
+            "id": 71,
+            "name": "Roof_Tile_Stairs_S",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/roof_tiles.png",
+            "facing": 2,
+            "color": [
+                0.69,
+                0.28,
+                0.19
+            ],
+            "colorTop": [
+                0.69,
+                0.28,
+                0.19
+            ]
+        },
+        {
+            "id": 72,
+            "name": "Roof_Tile_Stairs_W",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/roof_tiles.png",
+            "facing": 3,
+            "color": [
+                0.69,
+                0.28,
+                0.19
+            ],
+            "colorTop": [
+                0.69,
+                0.28,
+                0.19
+            ]
+        },
+        {
+            "id": 73,
+            "name": "Roof_Tile_Slab",
+            "renderType": "slab",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/roof_tiles.png",
+            "color": [
+                0.69,
+                0.28,
+                0.19
+            ],
+            "colorTop": [
+                0.69,
+                0.28,
+                0.19
+            ]
+        },
+        {
+            "id": 74,
+            "name": "Slate",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/slate.png",
+            "color": [
+                0.29,
+                0.32,
+                0.38
+            ],
+            "colorTop": [
+                0.29,
+                0.32,
+                0.38
+            ]
+        },
+        {
+            "id": 75,
+            "name": "Slate_Stairs_N",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/slate.png",
+            "facing": 0,
+            "color": [
+                0.29,
+                0.32,
+                0.38
+            ],
+            "colorTop": [
+                0.29,
+                0.32,
+                0.38
+            ]
+        },
+        {
+            "id": 76,
+            "name": "Slate_Stairs_E",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/slate.png",
+            "facing": 1,
+            "color": [
+                0.29,
+                0.32,
+                0.38
+            ],
+            "colorTop": [
+                0.29,
+                0.32,
+                0.38
+            ]
+        },
+        {
+            "id": 77,
+            "name": "Slate_Stairs_S",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/slate.png",
+            "facing": 2,
+            "color": [
+                0.29,
+                0.32,
+                0.38
+            ],
+            "colorTop": [
+                0.29,
+                0.32,
+                0.38
+            ]
+        },
+        {
+            "id": 78,
+            "name": "Slate_Stairs_W",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/slate.png",
+            "facing": 3,
+            "color": [
+                0.29,
+                0.32,
+                0.38
+            ],
+            "colorTop": [
+                0.29,
+                0.32,
+                0.38
+            ]
+        },
+        {
+            "id": 79,
+            "name": "Slate_Slab",
+            "renderType": "slab",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/slate.png",
+            "color": [
+                0.29,
+                0.32,
+                0.38
+            ],
+            "colorTop": [
+                0.29,
+                0.32,
+                0.38
+            ]
+        },
+        {
+            "id": 80,
+            "name": "Sandstone_Stairs_N",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/sandstone.png",
+            "textureTop": "textures/block/sandstone_top.png",
+            "textureBottom": "textures/block/sandstone_top.png",
+            "facing": 0,
+            "color": [
+                0.86,
+                0.81,
+                0.6
+            ],
+            "colorTop": [
+                0.86,
+                0.81,
+                0.6
+            ]
+        },
+        {
+            "id": 81,
+            "name": "Sandstone_Stairs_E",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/sandstone.png",
+            "textureTop": "textures/block/sandstone_top.png",
+            "textureBottom": "textures/block/sandstone_top.png",
+            "facing": 1,
+            "color": [
+                0.86,
+                0.81,
+                0.6
+            ],
+            "colorTop": [
+                0.86,
+                0.81,
+                0.6
+            ]
+        },
+        {
+            "id": 82,
+            "name": "Sandstone_Stairs_S",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/sandstone.png",
+            "textureTop": "textures/block/sandstone_top.png",
+            "textureBottom": "textures/block/sandstone_top.png",
+            "facing": 2,
+            "color": [
+                0.86,
+                0.81,
+                0.6
+            ],
+            "colorTop": [
+                0.86,
+                0.81,
+                0.6
+            ]
+        },
+        {
+            "id": 83,
+            "name": "Sandstone_Stairs_W",
+            "renderType": "stairs",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/sandstone.png",
+            "textureTop": "textures/block/sandstone_top.png",
+            "textureBottom": "textures/block/sandstone_top.png",
+            "facing": 3,
+            "color": [
+                0.86,
+                0.81,
+                0.6
+            ],
+            "colorTop": [
+                0.86,
+                0.81,
+                0.6
+            ]
+        },
+        {
+            "id": 84,
+            "name": "Sandstone_Slab",
+            "renderType": "slab",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/sandstone.png",
+            "textureTop": "textures/block/sandstone_top.png",
+            "textureBottom": "textures/block/sandstone_top.png",
+            "color": [
+                0.86,
+                0.81,
+                0.6
+            ],
+            "colorTop": [
+                0.86,
+                0.81,
+                0.6
+            ]
+        },
+        {
+            "id": 85,
+            "name": "Glass_Pane",
+            "renderType": "pane",
+            "transparent": true,
+            "solid": true,
+            "hardness": 0.3,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/glass.png",
+            "color": [
+                0.8,
+                0.9,
+                0.95
+            ],
+            "colorTop": [
+                0.8,
+                0.9,
+                0.95
+            ]
+        },
+        {
+            "id": 86,
+            "name": "Red_Stained_Glass_Pane",
+            "renderType": "pane",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.3,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stained_glass_red.png",
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 87,
+            "name": "Blue_Stained_Glass_Pane",
+            "renderType": "pane",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.3,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stained_glass_blue.png",
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 88,
+            "name": "Yellow_Stained_Glass_Pane",
+            "renderType": "pane",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.3,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/stained_glass_yellow.png",
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 89,
+            "name": "Oak_Fence",
+            "renderType": "fence",
+            "transparent": false,
+            "solid": true,
+            "hardness": 2.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_planks.png",
+            "color": [
+                0.66,
+                0.53,
+                0.32
+            ],
+            "colorTop": [
+                0.66,
+                0.53,
+                0.32
+            ]
+        },
+        {
+            "id": 90,
+            "name": "Spruce_Fence",
+            "renderType": "fence",
+            "transparent": false,
+            "solid": true,
+            "hardness": 2.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/spruce_planks.png",
+            "color": [
+                0.4,
+                0.29,
+                0.17
+            ],
+            "colorTop": [
+                0.4,
+                0.29,
+                0.17
+            ]
+        },
+        {
+            "id": 91,
+            "name": "Bookshelf",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 1.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/bookshelf.png",
+            "textureTop": "textures/block/oak_planks.png",
+            "textureBottom": "textures/block/oak_planks.png",
+            "color": [
+                0.5,
+                0.38,
+                0.25
+            ],
+            "colorTop": [
+                0.5,
+                0.38,
+                0.25
+            ]
+        },
+        {
+            "id": 92,
+            "name": "Barrel",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 2.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/barrel_side.png",
+            "textureTop": "textures/block/barrel_top.png",
+            "textureBottom": "textures/block/barrel_top.png",
+            "color": [
+                0.47,
+                0.32,
+                0.18
+            ],
+            "colorTop": [
+                0.47,
+                0.32,
+                0.18
+            ]
+        },
+        {
+            "id": 93,
+            "name": "Forge",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 3.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/forge_side.png",
+            "textureTop": "textures/block/forge_top.png",
+            "textureBottom": "textures/block/stone_bricks.png",
+            "light": 13,
+            "color": [
+                0.45,
+                0.42,
+                0.41
+            ],
+            "colorTop": [
+                0.45,
+                0.42,
+                0.41
+            ]
+        },
+        {
+            "id": 94,
+            "name": "White_Wool",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.8,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/wool_white.png",
+            "color": [
+                0.91,
+                0.91,
+                0.89
+            ],
+            "colorTop": [
+                0.91,
+                0.91,
+                0.89
+            ]
+        },
+        {
+            "id": 95,
+            "name": "Red_Wool",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.8,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/wool_red.png",
+            "color": [
+                0.67,
+                0.17,
+                0.16
+            ],
+            "colorTop": [
+                0.67,
+                0.17,
+                0.16
+            ]
+        },
+        {
+            "id": 96,
+            "name": "Yellow_Wool",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.8,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/wool_yellow.png",
+            "color": [
+                0.93,
+                0.77,
+                0.2
+            ],
+            "colorTop": [
+                0.93,
+                0.77,
+                0.2
+            ]
+        },
+        {
+            "id": 97,
+            "name": "Blue_Wool",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.8,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/wool_blue.png",
+            "color": [
+                0.21,
+                0.27,
+                0.66
+            ],
+            "colorTop": [
+                0.21,
+                0.27,
+                0.66
+            ]
+        },
+        {
+            "id": 98,
+            "name": "Green_Wool",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 0.8,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/wool_green.png",
+            "color": [
+                0.35,
+                0.49,
+                0.16
+            ],
+            "colorTop": [
+                0.35,
+                0.49,
+                0.16
+            ]
+        },
+        {
+            "id": 99,
+            "name": "Carrots",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/carrots.png",
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 100,
+            "name": "Potatoes",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/potatoes.png",
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 101,
+            "name": "Beetroots",
+            "renderType": "cross",
+            "transparent": true,
+            "solid": false,
+            "hardness": 0.0,
+            "tint": "none",
+            "waving": true,
+            "texture": "textures/block/beetroots.png",
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 102,
+            "name": "Oak_Door_Lower_N",
+            "renderType": "door",
+            "transparent": false,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_bottom.png",
+            "facing": 0,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 103,
+            "name": "Oak_Door_Lower_E",
+            "renderType": "door",
+            "transparent": false,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_bottom.png",
+            "facing": 1,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 104,
+            "name": "Oak_Door_Lower_S",
+            "renderType": "door",
+            "transparent": false,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_bottom.png",
+            "facing": 2,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 105,
+            "name": "Oak_Door_Lower_W",
+            "renderType": "door",
+            "transparent": false,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_bottom.png",
+            "facing": 3,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 106,
+            "name": "Oak_Door_Upper_N",
+            "renderType": "door",
+            "transparent": true,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_top.png",
+            "facing": 0,
+            "doorTop": true,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 107,
+            "name": "Oak_Door_Upper_E",
+            "renderType": "door",
+            "transparent": true,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_top.png",
+            "facing": 1,
+            "doorTop": true,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 108,
+            "name": "Oak_Door_Upper_S",
+            "renderType": "door",
+            "transparent": true,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_top.png",
+            "facing": 2,
+            "doorTop": true,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 109,
+            "name": "Oak_Door_Upper_W",
+            "renderType": "door",
+            "transparent": true,
+            "solid": false,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/oak_door_top.png",
+            "facing": 3,
+            "doorTop": true,
+            "color": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "colorTop": [
+                0.5,
+                0.5,
+                0.5
+            ]
+        },
+        {
+            "id": 110,
+            "name": "Gold_Block",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 3.0,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/gold_block.png",
+            "color": [
+                0.92,
+                0.77,
+                0.25
+            ],
+            "colorTop": [
+                0.92,
+                0.77,
+                0.25
+            ]
+        },
+        {
+            "id": 111,
+            "name": "Crafting_Table",
+            "renderType": "cube",
+            "transparent": false,
+            "solid": true,
+            "hardness": 2.5,
+            "tint": "none",
+            "waving": false,
+            "texture": "textures/block/crafting_table_side.png",
+            "textureTop": "textures/block/crafting_table_top.png",
+            "textureBottom": "textures/block/oak_planks.png",
+            "color": [
+                0.6,
+                0.45,
+                0.28
+            ],
+            "colorTop": [
+                0.6,
+                0.45,
+                0.28
+            ]
         }
     ]
 }

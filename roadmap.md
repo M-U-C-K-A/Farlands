@@ -57,6 +57,8 @@ Cette roadmap détaille les étapes de développement du projet Farlands, d'un m
 - [x] Préréglage **Nuit** : clair de lune, ombres de la lune, étoiles.
 - [x] Onglet Monde : téléportation vers les structures et les biomes, nouveau monde depuis une graine.
 - [x] Scripts de capture (`FARLANDS_SCRIPT`) pour les captures de la documentation.
+- [x] **Grands villages** : rues et ruelles, place avec fontaine et étals, maisons de trois tailles, église (clocher, vitraux, bancs), forge, taverne, bibliothèque, remparts avec tours et portes, moulins, granges, champs le long des chemins, port avec pontons et barques.
+- [x] Escaliers (4 orientations), dalles, vitres, vitraux, barrières, portes : sommets de 16 octets avec coordonnées de texture fractionnaires, collisions selon la forme, marche automatique.
 
 ## Phase 10 : Suite
 - [ ] Greedy meshing (moins de sommets pour les ombres).
@@ -64,4 +66,4 @@ Cette roadmap détaille les étapes de développement du projet Farlands, d'un m
 - [ ] Grottes.
 - [ ] Cycle jour / nuit animé.
 - [ ] Villageois et animaux.
-- [ ] Escaliers, dalles, portes ; structures visibles dans le terrain lointain.
+- [ ] Escaliers renversés, portes qui s'ouvrent ; structures visibles dans le terrain lointain.

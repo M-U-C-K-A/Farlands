@@ -64,7 +64,45 @@ enum class BlockType : uint8_t
 	Pumpkin = 45,
 	Jack_O_Lantern = 46, // lumineux
 	White_Plaster = 47,
-	Count
+	// Villages : escaliers (4 orientations consécutives), dalles, vitres...
+	Oak_Stairs = 48, // escaliers : + orientation (0 N, 1 E, 2 S, 3 O)
+	Oak_Slab = 52,
+	Spruce_Stairs = 53, // escaliers : + orientation (0 N, 1 E, 2 S, 3 O)
+	Spruce_Slab = 57,
+	Cobblestone_Stairs = 58, // escaliers : + orientation (0 N, 1 E, 2 S, 3 O)
+	Cobblestone_Slab = 62,
+	Stone_Brick_Stairs = 63, // escaliers : + orientation (0 N, 1 E, 2 S, 3 O)
+	Stone_Brick_Slab = 67,
+	Roof_Tiles = 68,
+	Roof_Tile_Stairs = 69, // escaliers : + orientation (0 N, 1 E, 2 S, 3 O)
+	Roof_Tile_Slab = 73,
+	Slate = 74,
+	Slate_Stairs = 75, // escaliers : + orientation (0 N, 1 E, 2 S, 3 O)
+	Slate_Slab = 79,
+	Sandstone_Stairs = 80, // escaliers : + orientation (0 N, 1 E, 2 S, 3 O)
+	Sandstone_Slab = 84,
+	Glass_Pane = 85,
+	Red_Stained_Glass_Pane = 86,
+	Blue_Stained_Glass_Pane = 87,
+	Yellow_Stained_Glass_Pane = 88,
+	Oak_Fence = 89,
+	Spruce_Fence = 90,
+	Bookshelf = 91,
+	Barrel = 92,
+	Forge = 93, // lumineux
+	White_Wool = 94,
+	Red_Wool = 95,
+	Yellow_Wool = 96,
+	Blue_Wool = 97,
+	Green_Wool = 98,
+	Carrots = 99,
+	Potatoes = 100,
+	Beetroots = 101,
+	Oak_Door_Lower = 102, // porte (moitié basse) : + orientation
+	Oak_Door_Upper = 106, // porte (moitié haute) : + orientation
+	Gold_Block = 110,
+	Crafting_Table = 111,
+	Count = 112
 };
 
 /// Géométrie générée pour un bloc
@@ -73,7 +111,30 @@ enum class RenderType : uint8_t
 	Cube,   // cube plein (opaque ou "cutout" si transparent)
 	Cross,  // sprite en croix (herbes, fleurs)
 	Liquid, // eau : rendue dans la passe translucide
+	Stairs, // marche : demi-bloc + quart haut côté "facing"
+	Slab,   // dalle : moitié basse
+	Pane,   // vitre : plaque fine reliée aux voisins
+	Fence,  // barrière : poteau + traverses vers les voisins
+	Door,   // porte : panneau fin côté "facing" (moitié basse ou haute)
 };
+
+/// Bloc orienté : base (escaliers, portes) + orientation 0..3
+inline BlockType oriented(BlockType base, int facing)
+{
+	return static_cast<BlockType>(static_cast<int>(base) + (facing & 3));
+}
+
+/// Orientation horizontale : 0 nord (-Z), 1 est (+X), 2 sud (+Z), 3 ouest (-X)
+inline glm::ivec2 facingDir(int facing)
+{
+	switch(facing & 3)
+		{
+		case 0: return {0, -1};
+		case 1: return {1, 0};
+		case 2: return {0, 1};
+		default: return {-1, 0};
+		}
+}
 
 /// Teinte de biome appliquée au bloc
 enum class TintType : uint8_t
@@ -95,6 +156,8 @@ struct BlockData
 	TintType tint = TintType::None;
 	bool waving = false; // ondule au vent (feuillages, plantes)
 	uint8_t light = 0;   // lumière émise (0..15, propagée par le maillage)
+	uint8_t facing = 0;  // escaliers, portes : côté haut / côté du panneau
+	bool doorTop = false; // porte : moitié haute
 
 	// Texture indices into the global texture array
 	int texLayerFront = 0;

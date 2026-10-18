@@ -4,7 +4,7 @@
 // la shadow map est mise en cache entre les frames.
 #include "common.glsl"
 
-layout(location = 0) in vec3 inPos;
+layout(location = 0) in uvec4 inPos;  // position locale au chunk (fixe), uv
 layout(location = 1) in uint inData;
 layout(location = 2) in vec4 inTint;
 
@@ -13,7 +13,7 @@ layout(location = 0) out vec3 vUV;
 void main()
 {
     VertexData v = unpackVertex(inData);
-    vec3 rel = inPos + pc.a.xyz;
+    vec3 rel = vertexPosition(inPos) + pc.a.xyz;
     gl_Position = u.lightViewProj * vec4(rel, 1.0);
-    vUV = vec3(v.uv, float(v.layer));
+    vUV = vec3(vertexUV(inPos), float(v.layer));
 }

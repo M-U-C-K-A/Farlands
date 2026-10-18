@@ -304,3 +304,195 @@ for y, row in enumerate(face):
         if c == "#":
             jack[y, x] = np.array((255, 226, 120)) + rng.uniform(-10, 10)
 save("jack_o_lantern", jack)
+
+
+# ═════════════════════════════════════════════════════════════════
+# Villages : toits, vitres, mobilier, laine, cultures, portes
+# ═════════════════════════════════════════════════════════════════
+def tiles(base, dark, light, rows=4, n=16):
+    """Tuiles / ardoises : rangées décalées, arrondi en bas de chaque tuile"""
+    img = np.zeros((n, n, 3))
+    h = n // rows
+    for r in range(rows):
+        off = (h // 2 + 1) * (r % 2)
+        for y in range(r * h, r * h + h):
+            for x in range(n):
+                lx = (x + off) % 4
+                ly = y - r * h
+                c = np.array(base, float) + rng.uniform(-9, 9)
+                if ly == h - 1:
+                    c = np.array(dark, float)          # ombre sous la rangée suivante
+                elif ly == 0:
+                    c = np.array(light, float) + rng.uniform(-6, 6)
+                elif lx == 0:
+                    c = c * 0.82                      # joint entre deux tuiles
+                img[y, x] = c
+    return img
+
+save("roof_tiles", tiles((176, 72, 48), (104, 38, 26), (204, 102, 70)))
+save("slate", tiles((74, 82, 96), (40, 44, 54), (100, 108, 122)))
+
+# Verre : cadre clair et reflets, centre transparent (découpe alpha)
+glass = np.zeros((16, 16, 4))
+edge = (214, 236, 246, 255)
+glass[0, :] = glass[15, :] = edge
+glass[:, 0] = glass[:, 15] = edge
+for (y, x) in [(3, 4), (4, 3), (5, 2), (2, 5), (11, 11), (12, 10), (10, 12), (3, 12)]:
+    glass[y, x] = (236, 248, 255, 255)
+save("glass", glass)
+
+def stained(color):
+    img = np.zeros((16, 16, 4))
+    lead = np.array((38, 36, 40, 255), float)
+    for y in range(16):
+        for x in range(16):
+            # Losanges sertis de plomb
+            dd = (x + y) % 8 == 0 or (x - y) % 8 == 0
+            if x in (0, 15) or y in (0, 15) or dd:
+                img[y, x] = lead
+            else:
+                c = np.array(color, float) * (0.82 + 0.3 * rng.uniform()) + rng.uniform(-10, 10, 3)
+                img[y, x] = (*np.clip(c, 0, 255), 255)
+    return img
+
+save("stained_glass_red", stained((190, 40, 40)))
+save("stained_glass_blue", stained((50, 80, 200)))
+save("stained_glass_yellow", stained((230, 190, 50)))
+
+# Bibliothèque : deux étagères de livres
+oak16 = np.array(Image.open(os.path.join(OUT, "oak_planks.png")).convert("RGB").resize((16, 16), Image.NEAREST), float)
+book = np.zeros((16, 16, 3))
+book[:] = oak16
+spines = [(130, 40, 36), (52, 86, 140), (60, 110, 54), (150, 120, 60), (96, 52, 110), (170, 150, 120)]
+for top in (1, 9):
+    book[top + 6] = np.array((92, 64, 34))
+    x = 1
+    while x < 15:
+        w = 1 + int(rng.integers(0, 2))
+        c = np.array(spines[int(rng.integers(0, len(spines)))], float)
+        hgt = int(rng.integers(4, 7))
+        for xx in range(x, min(15, x + w)):
+            for y in range(top + 6 - hgt, top + 6):
+                book[y, xx] = c * (0.85 + 0.25 * (xx == x)) + rng.uniform(-6, 6)
+        x += w
+book[0] = book[8] = book[15] = np.array((110, 78, 44))
+save("bookshelf", book)
+
+# Tonneau
+bar = np.zeros((16, 16, 3))
+for x in range(16):
+    bar[:, x] = np.array((120, 82, 46)) * (0.86 + 0.14 * ((x // 3) % 2)) + rng.uniform(-6, 6)
+    bar[:, x] -= (x % 3 == 0) * 18
+for y in (2, 3, 12, 13):
+    bar[y] = np.array((70, 70, 76)) + rng.uniform(-6, 6, (16, 3))
+save("barrel_side", bar)
+bt = fill((132, 92, 52)) + noise(amp=8)
+yy, xx = np.mgrid[0:16, 0:16]
+rr = np.sqrt((xx - 7.5) ** 2 + (yy - 7.5) ** 2)
+bt[rr > 6.8] = np.array((72, 72, 78))
+bt[(rr > 5.6) & (rr <= 6.8)] -= 22
+for y in range(16):
+    if y % 4 == 0:
+        bt[y][rr[y] <= 5.6] -= 14
+save("barrel_top", bt)
+
+# Forge : pierre et grille rougeoyante, braises sur le dessus
+fs = bricks((112, 108, 106), (70, 68, 68), rows=4, width=8, var=10, bevel=6)
+for y in range(6, 12):
+    for x in range(4, 12):
+        if x in (4, 11) or y in (6, 11):
+            fs[y, x] = (52, 48, 46)
+        elif x % 2 == 1:
+            fs[y, x] = (44, 40, 38)
+        else:
+            t = (y - 6) / 5.0
+            fs[y, x] = np.array((255, 214, 120)) * (1 - t) + np.array((230, 90, 30)) * t
+save("forge_side", fs)
+ft = fill((40, 34, 32)) + noise(amp=6)
+for _ in range(70):
+    y, x = rng.integers(1, 15, 2)
+    ft[y, x] = rng.choice([(255, 140, 40), (255, 200, 90), (220, 70, 20), (255, 236, 160)])
+ft[[0, 15], :] = (96, 92, 90)
+ft[:, [0, 15]] = (96, 92, 90)
+save("forge_top", ft)
+
+# Laines
+def wool(color):
+    w = fill(color) + noise(amp=7)
+    for y in range(16):
+        for x in range(16):
+            if (x + 2 * y) % 5 == 0:
+                w[y, x] *= 0.9
+    return w
+
+save("wool_white", wool((232, 232, 228)))
+save("wool_red", wool((170, 44, 40)))
+save("wool_yellow", wool((236, 196, 52)))
+save("wool_blue", wool((54, 70, 168)))
+save("wool_green", wool((88, 124, 40)))
+
+# Cultures
+def crop(leaf, root=None, rootRows=0):
+    img = np.zeros((16, 16, 4))
+    for x in (2, 5, 8, 11, 14):
+        h = int(rng.integers(5, 9))
+        for y in range(15, 15 - h, -1):
+            dx = 0 if y > 12 else int(rng.integers(-1, 2))
+            xx = min(15, max(0, x + dx))
+            img[y, xx] = (*(np.array(leaf, float) + rng.uniform(-18, 18)), 255)
+            if y < 12 and rng.uniform() < 0.5 and xx + 1 < 16:
+                img[y, xx + 1] = (*(np.array(leaf, float) * 0.8), 255)
+        if root:
+            for y in range(16 - rootRows, 16):
+                img[y, x] = (*root, 255)
+                if x + 1 < 16:
+                    img[y, x + 1] = (*(np.array(root) * 0.85), 255)
+    return img
+
+save("carrots", crop((70, 140, 40), (232, 120, 30), 2))
+save("potatoes", crop((80, 150, 50), (196, 160, 90), 2))
+save("beetroots", crop((60, 120, 50), (150, 30, 50), 3))
+
+# Porte en chêne (bas plein, haut avec deux carreaux)
+def door(top):
+    img = np.zeros((16, 16, 4))
+    for y in range(16):
+        for x in range(16):
+            c = np.array(oak16[y, x], float) * 0.92
+            if x in (0, 15) or (not top and y == 15) or (top and y == 0):
+                c = c * 0.7
+            if (y % 5 == 2) and 1 <= x <= 14:
+                c = c * 0.82
+            img[y, x] = (*c, 255)
+    if top:
+        for y in range(3, 9):
+            for x in list(range(3, 7)) + list(range(9, 13)):
+                img[y, x] = (0, 0, 0, 0)
+    else:
+        img[8, 12] = (60, 60, 64, 255)
+        img[8, 13] = (90, 90, 96, 255)
+    return img
+
+save("oak_door_bottom", door(False))
+save("oak_door_top", door(True))
+
+gold = fill((236, 196, 64)) + noise(amp=10)
+gold[[0, 15], :] = (255, 236, 140)
+gold[:, [0, 15]] = (200, 150, 40)
+save("gold_block", gold)
+
+ct = oak16.copy()
+ct[[0, 15], :] *= 0.75
+ct[:, [0, 15]] *= 0.75
+for k in (5, 10):
+    ct[k, 1:15] = (96, 66, 36)
+    ct[1:15, k] = (96, 66, 36)
+save("crafting_table_top", ct)
+cs = oak16.copy()
+cs[0:3] = (110, 76, 42)
+for y in range(5, 12):
+    cs[y, 3] = (130, 130, 136)
+    cs[y, 11] = (96, 70, 40)
+cs[5, 2:5] = (160, 160, 166)
+cs[5:7, 10:13] = (150, 150, 156)
+save("crafting_table_side", cs)

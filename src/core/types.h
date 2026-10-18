@@ -12,33 +12,51 @@
 #include <array>
 #include <cstdint>
 
-// ── Vertex compact (20 octets) ──────────────────────────────────
-// pos  : position locale au chunk (x, z dans [0, 16], y dans [0, 256])
+// ── Vertex compact (16 octets) ──────────────────────────────────
+// pos  : (position locale au chunk + 1) × 64, 3 × uint16 (x, z dans [-1, 17],
+//        y dans [-1, 257], précision 1/64 de bloc)
+// uv   : u | v << 8, coordonnées de texture en 1/16 de bloc (0..16) : les
+//        faces partielles (escaliers, dalles, vitres, barrières) gardent la
+//        bonne échelle de texture
 // data : bits [0..9]   couche de texture
 //        bits [10..12] normale (0 +Z, 1 -Z, 2 +Y, 3 -Y, 4 +X, 5 -X, 6 plante)
 //        bits [13..14] occlusion ambiante (0 = aucune, 3 = maximale)
-//        bit  15       u, bit 16 v (coin de texture)
-//        bits [17..24] type de bloc
-//        bits [25..26] ondulation (0 aucune, 1 feuillage, 2 haut de plante)
-//        bits [27..28] mélange de surface (0 aucun, 1 herbe, 2 sable, 3 neige)
-//        bits [29..31] part du type mélangé autour du coin, en quarts (0..4)
-// tint : couleur multiplicative RGBA8 encodée sur [0, 2] (0x80 = 1.0), pour
-//        pouvoir aussi éclaircir/saturer (teinte de biome)
+//        bits [15..22] type de bloc
+//        bits [23..24] ondulation (0 aucune, 1 feuillage, 2 haut de plante)
+//        bits [25..26] mélange de surface (0 aucun, 1 herbe, 2 sable, 3 neige)
+//        bits [27..29] part du type mélangé autour du coin, en quarts (0..4)
+// tint : couleur multiplicative RGB8 encodée sur [0, 2] (0x80 = 1.0), pour
+//        pouvoir aussi éclaircir/saturer (teinte de biome) ; alpha : niveau
+//        de lumière des blocs (lanternes, torches) × 17
 struct Vertex
 {
-	glm::vec3 pos;
+	uint16_t px, py, pz;
+	uint16_t uv;
 	uint32_t data;
 	uint32_t tint;
 
-	static uint32_t pack(uint32_t layer, uint32_t normal, uint32_t ao,
-						 uint32_t u, uint32_t v, uint32_t blockType,
-						 uint32_t wave, uint32_t blendKind = 0,
-						 uint32_t blendCount = 0)
+	static constexpr float POS_SCALE = 64.0f;
+
+	static Vertex make(const glm::vec3 &p, float u, float v, uint32_t data, uint32_t tint)
+	{
+		auto q = [](float c) {
+			float s = (c + 1.0f) * POS_SCALE + 0.5f;
+			return static_cast<uint16_t>(s < 0.0f ? 0.0f : (s > 65535.0f ? 65535.0f : s));
+		};
+		auto t = [](float c) { return static_cast<uint32_t>(c * 16.0f + 0.5f) & 0xFFu; };
+		return {q(p.x), q(p.y), q(p.z), static_cast<uint16_t>(t(u) | (t(v) << 8)), data, tint};
+	}
+	glm::vec3 position() const
+	{
+		return glm::vec3(px, py, pz) / POS_SCALE - 1.0f;
+	}
+
+	static uint32_t pack(uint32_t layer, uint32_t normal, uint32_t ao, uint32_t blockType,
+						 uint32_t wave, uint32_t blendKind = 0, uint32_t blendCount = 0)
 	{
 		return (layer & 0x3FFu) | ((normal & 7u) << 10) | ((ao & 3u) << 13)
-			   | ((u & 1u) << 15) | ((v & 1u) << 16)
-			   | ((blockType & 0xFFu) << 17) | ((wave & 3u) << 25)
-			   | ((blendKind & 3u) << 27) | ((blendCount & 7u) << 29);
+			   | ((blockType & 0xFFu) << 15) | ((wave & 3u) << 23)
+			   | ((blendKind & 3u) << 25) | ((blendCount & 7u) << 27);
 	}
 
 	// Fournit à Vulkan la description de la structure globale du Vertex
@@ -56,13 +74,13 @@ struct Vertex
 	getAttributeDescriptions()
 	{
 		std::array<VkVertexInputAttributeDescription, 3> attrs{};
-		attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)};
+		attrs[0] = {0, 0, VK_FORMAT_R16G16B16A16_UINT, offsetof(Vertex, px)};
 		attrs[1] = {1, 0, VK_FORMAT_R32_UINT, offsetof(Vertex, data)};
 		attrs[2] = {2, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(Vertex, tint)};
 		return attrs;
 	}
 };
-static_assert(sizeof(Vertex) == 20, "Vertex must stay tightly packed");
+static_assert(sizeof(Vertex) == 16, "Vertex must stay tightly packed");
 
 /// Teinte neutre (multiplicateur 1.0) dans l'encodage [0, 2]
 constexpr uint32_t TINT_NEUTRAL = 0xFF808080u;

@@ -117,11 +117,11 @@ class Application
 	std::string m_dataDir = ".farlands";
 
 	// Construction
-	std::array<BlockType, 9> m_hotbar{BlockType::Stone_Bricks, BlockType::Plank,
-									  BlockType::Cobblestone,  BlockType::Glass,
-									  BlockType::Log,          BlockType::White_Plaster,
-									  BlockType::Lantern,      BlockType::Torch,
-									  BlockType::Grass};
+	std::array<BlockType, 9> m_hotbar{BlockType::Stone_Bricks,     BlockType::Plank,
+									  BlockType::White_Plaster,    BlockType::Log,
+									  BlockType::Glass_Pane,       BlockType::Roof_Tile_Stairs,
+									  BlockType::Oak_Door_Lower,   BlockType::Lantern,
+									  BlockType::Torch};
 	int m_hotbarSlot = 0;
 	RayHit m_target;
 	float m_nextBreak = 0.0f, m_nextPlace = 0.0f;
